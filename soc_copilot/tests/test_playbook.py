@@ -66,6 +66,21 @@ def test_containment_is_never_recommended_on_a_benign_case(kb):
     assert [step.step_id for step in got] == ["PB-ATO-01"]
 
 
+@pytest.mark.parametrize("scenario,hypotheses,user,src_ip", [
+    ("S4", ["ATO"], "carol@corp.example", "10.0.1.12"),
+    ("S5", ["GUESS"], "dave@corp.example", "10.0.1.13"),
+    ("S10", ["ATO"], "uma.admin@corp.example", "198.51.100.10"),
+])
+def test_benign_scenarios_get_no_containment_step(kb, scenario, hypotheses, user, src_ip):
+    """S4, S5 and S10 are all LIKELY_BENIGN, so none may offer a containment step (D17)."""
+    got = recommend(kb, hypotheses, "LIKELY_BENIGN", user=user, src_ip=src_ip,
+                    success=scenario != "S5", spray_source=False)
+    assert got, f"{scenario} should still get non-containment advice"
+    assert all(step.type != "contain" for step in got), \
+        f"{scenario}: {[s.step_id for s in got if s.type == 'contain']}"
+    assert all(step.requires_approval is False for step in got)
+
+
 def test_success_only_steps_are_withheld_without_a_success(kb):
     """A spray with no success must not offer takeover containment."""
     got = recommend(kb, ["SPRAY"], "ATTACK_ATTEMPT_NO_ACCESS",

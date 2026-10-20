@@ -146,8 +146,11 @@ class ToolRunner:
         event_ids = list(frame["event_id"])
         reasons = frame["failure_reason"].value_counts().to_dict()
         query = self._finish(signature, "T1", params, len(event_ids), (start, end))
+        # Sorted by key: value_counts() orders by frequency, and ties could come
+        # out in either order, which would change the fact's JSON and its hash.
         return ToolOutput("T1", params, len(event_ids), event_ids, (start, end),
-                          detail={"reasons": {str(k): int(v) for k, v in reasons.items()}},
+                          detail={"reasons": {str(key): int(reasons[key])
+                                              for key in sorted(reasons, key=str)}},
                           query=query)
 
     def t2_successes_after(
@@ -269,7 +272,7 @@ class ToolRunner:
         counts = [int(value) for value in attempts.values()]
         detail = {
             "accounts": accounts,
-            "attempts": {str(user): int(count) for user, count in attempts.items()},
+            "attempts": {str(user): int(attempts[user]) for user in sorted(attempts, key=str)},
             "median_attempts": statistics.median(counts) if counts else 0,
             # §16.4: non-existent usernames reach the narrative only as a count.
             "unknown_username_count": len(unknown),

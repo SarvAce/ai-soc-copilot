@@ -97,7 +97,10 @@ def write_tickets(tickets: list[dict[str, Any]]) -> None:
     path = KB_DIR / "it_tickets.csv"
     rows = sorted(tickets, key=lambda row: (row["opened_at"], row["ticket_id"]))
     with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=["ticket_id", "user", "type", "opened_at"])
+        # lineterminator="\n": csv defaults to \r\n, which would make the KB
+        # hash depend on how the file was written rather than on its content.
+        writer = csv.DictWriter(handle, fieldnames=["ticket_id", "user", "type", "opened_at"],
+                                lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
