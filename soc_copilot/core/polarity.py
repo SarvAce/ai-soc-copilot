@@ -13,7 +13,12 @@ POLARITY_RULES: dict[str, Polarity] = {
     "spray_pattern": "MALICIOUS",
     "unknown_usernames": "MALICIOUS",
     "success_after_failures": "MALICIOUS",
-    "persistence": "MALICIOUS",          # MFA device or password change after a success
+    # §16.1 names both forms of persistence: "an MFA device registered or a
+    # password changed after a suspicious success". They are separate topics
+    # because check R9 allows T1098.005 Device Registration only on the
+    # strength of a device-registration fact, so the two cannot share one name.
+    "persistence": "MALICIOUS",          # password change after a success
+    "mfa_device_registered": "MALICIOUS",   # MFA device registered after a success
     "new_country": "MALICIOUS",          # only when no travel ticket covers it
 
     # Facts arguing against the attack hypothesis.

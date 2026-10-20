@@ -1,0 +1,431 @@
+{
+  "config_hash": "8943cb7bfe49",
+  "dataset": "design set S1-S11",
+  "expected_gaps": {
+    "S11": [
+      "E6"
+    ],
+    "S6a": [
+      "E5"
+    ],
+    "S6b": [
+      "E5"
+    ]
+  },
+  "false_alarms": {},
+  "kb_hash": "68368958f1c7",
+  "measured_on": "2026-10-20",
+  "mode": "mock",
+  "mutations": {
+    "M1": {
+      "also_fired": {
+        "E6": 7
+      },
+      "catch_rate": 1.0,
+      "caught": 10,
+      "expected_check": "E2",
+      "fitted": 10,
+      "fitting_scenarios": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6a",
+        "S6b",
+        "S8",
+        "S10",
+        "S11"
+      ],
+      "missed": [],
+      "offered": 10,
+      "skipped": {}
+    },
+    "M10": {
+      "also_fired": {
+        "R5": 3
+      },
+      "catch_rate": 1.0,
+      "caught": 3,
+      "expected_check": "R4",
+      "fitted": 3,
+      "fitting_scenarios": [
+        "S4",
+        "S5",
+        "S10"
+      ],
+      "missed": [],
+      "offered": 10,
+      "skipped": {
+        "S1": "the report has nothing this mutation fits",
+        "S11": "the report has nothing this mutation fits",
+        "S2": "the report has nothing this mutation fits",
+        "S3": "the report has nothing this mutation fits",
+        "S6a": "the report has nothing this mutation fits",
+        "S6b": "the report has nothing this mutation fits",
+        "S8": "the report has nothing this mutation fits"
+      }
+    },
+    "M11": {
+      "also_fired": {},
+      "catch_rate": 1.0,
+      "caught": 3,
+      "expected_check": "R5",
+      "fitted": 3,
+      "fitting_scenarios": [
+        "S4",
+        "S5",
+        "S10"
+      ],
+      "missed": [],
+      "offered": 10,
+      "skipped": {
+        "S1": "the report has nothing this mutation fits",
+        "S11": "the report has nothing this mutation fits",
+        "S2": "the report has nothing this mutation fits",
+        "S3": "the report has nothing this mutation fits",
+        "S6a": "the report has nothing this mutation fits",
+        "S6b": "the report has nothing this mutation fits",
+        "S8": "the report has nothing this mutation fits"
+      }
+    },
+    "M12": {
+      "also_fired": {},
+      "catch_rate": 1.0,
+      "caught": 10,
+      "expected_check": "R6",
+      "fitted": 10,
+      "fitting_scenarios": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6a",
+        "S6b",
+        "S8",
+        "S10",
+        "S11"
+      ],
+      "missed": [],
+      "offered": 10,
+      "skipped": {}
+    },
+    "M13": {
+      "also_fired": {},
+      "catch_rate": 1.0,
+      "caught": 10,
+      "expected_check": "R7",
+      "fitted": 10,
+      "fitting_scenarios": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6a",
+        "S6b",
+        "S8",
+        "S10",
+        "S11"
+      ],
+      "missed": [],
+      "offered": 10,
+      "skipped": {}
+    },
+    "M14": {
+      "also_fired": {},
+      "catch_rate": 1.0,
+      "caught": 10,
+      "expected_check": "R8",
+      "fitted": 10,
+      "fitting_scenarios": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6a",
+        "S6b",
+        "S8",
+        "S10",
+        "S11"
+      ],
+      "missed": [],
+      "offered": 10,
+      "skipped": {}
+    },
+    "M15": {
+      "also_fired": {},
+      "catch_rate": 1.0,
+      "caught": 10,
+      "expected_check": "R9",
+      "fitted": 10,
+      "fitting_scenarios": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6a",
+        "S6b",
+        "S8",
+        "S10",
+        "S11"
+      ],
+      "missed": [],
+      "offered": 10,
+      "skipped": {}
+    },
+    "M16": {
+      "also_fired": {},
+      "catch_rate": 1.0,
+      "caught": 10,
+      "expected_check": "R10",
+      "fitted": 10,
+      "fitting_scenarios": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6a",
+        "S6b",
+        "S8",
+        "S10",
+        "S11"
+      ],
+      "missed": [],
+      "offered": 10,
+      "skipped": {}
+    },
+    "M17": {
+      "also_fired": {},
+      "catch_rate": 1.0,
+      "caught": 10,
+      "expected_check": "R1",
+      "fitted": 10,
+      "fitting_scenarios": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6a",
+        "S6b",
+        "S8",
+        "S10",
+        "S11"
+      ],
+      "missed": [],
+      "offered": 10,
+      "skipped": {}
+    },
+    "M2": {
+      "also_fired": {
+        "E2": 9,
+        "E3": 2,
+        "E6": 7,
+        "R6": 3,
+        "R8": 2,
+        "R9": 6
+      },
+      "catch_rate": 1.0,
+      "caught": 10,
+      "expected_check": "E1/R2",
+      "fitted": 10,
+      "fitting_scenarios": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6a",
+        "S6b",
+        "S8",
+        "S10",
+        "S11"
+      ],
+      "missed": [],
+      "offered": 10,
+      "skipped": {}
+    },
+    "M3": {
+      "also_fired": {
+        "E2": 2,
+        "E6": 1
+      },
+      "catch_rate": 1.0,
+      "caught": 2,
+      "expected_check": "E3",
+      "fitted": 2,
+      "fitting_scenarios": [
+        "S2",
+        "S11"
+      ],
+      "missed": [],
+      "offered": 10,
+      "skipped": {
+        "S1": "the report has nothing this mutation fits",
+        "S10": "the report has nothing this mutation fits",
+        "S3": "the report has nothing this mutation fits",
+        "S4": "the report has nothing this mutation fits",
+        "S5": "the report has nothing this mutation fits",
+        "S6a": "the report has nothing this mutation fits",
+        "S6b": "the report has nothing this mutation fits",
+        "S8": "the report has nothing this mutation fits"
+      }
+    },
+    "M4": {
+      "also_fired": {},
+      "catch_rate": 1.0,
+      "caught": 10,
+      "expected_check": "R3",
+      "fitted": 10,
+      "fitting_scenarios": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6a",
+        "S6b",
+        "S8",
+        "S10",
+        "S11"
+      ],
+      "missed": [],
+      "offered": 10,
+      "skipped": {}
+    },
+    "M5": {
+      "also_fired": {},
+      "catch_rate": 1.0,
+      "caught": 10,
+      "expected_check": "R3",
+      "fitted": 10,
+      "fitting_scenarios": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6a",
+        "S6b",
+        "S8",
+        "S10",
+        "S11"
+      ],
+      "missed": [],
+      "offered": 10,
+      "skipped": {}
+    },
+    "M6": {
+      "also_fired": {
+        "E3": 5,
+        "E6": 4
+      },
+      "catch_rate": 1.0,
+      "caught": 5,
+      "expected_check": "E4",
+      "fitted": 5,
+      "fitting_scenarios": [
+        "S1",
+        "S2",
+        "S4",
+        "S10",
+        "S11"
+      ],
+      "missed": [],
+      "offered": 10,
+      "skipped": {
+        "S3": "the report has nothing this mutation fits",
+        "S5": "the report has nothing this mutation fits",
+        "S6a": "the report has nothing this mutation fits",
+        "S6b": "the report has nothing this mutation fits",
+        "S8": "the report has nothing this mutation fits"
+      }
+    },
+    "M7": {
+      "also_fired": {},
+      "catch_rate": 1.0,
+      "caught": 5,
+      "expected_check": "E5",
+      "fitted": 5,
+      "fitting_scenarios": [
+        "S2",
+        "S3",
+        "S5",
+        "S8",
+        "S11"
+      ],
+      "missed": [],
+      "offered": 10,
+      "skipped": {
+        "S1": "the report has nothing this mutation fits",
+        "S10": "the report has nothing this mutation fits",
+        "S4": "the report has nothing this mutation fits",
+        "S6a": "E5 already fails on the clean report",
+        "S6b": "E5 already fails on the clean report"
+      }
+    },
+    "M8": {
+      "also_fired": {},
+      "catch_rate": 1.0,
+      "caught": 9,
+      "expected_check": "E6",
+      "fitted": 9,
+      "fitting_scenarios": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6a",
+        "S6b",
+        "S8",
+        "S10"
+      ],
+      "missed": [],
+      "offered": 10,
+      "skipped": {
+        "S11": "E6 already fails on the clean report"
+      }
+    },
+    "M9": {
+      "also_fired": {},
+      "catch_rate": 1.0,
+      "caught": 2,
+      "expected_check": "E7",
+      "fitted": 2,
+      "fitting_scenarios": [
+        "S2",
+        "S11"
+      ],
+      "missed": [],
+      "offered": 10,
+      "skipped": {
+        "S1": "the report has nothing this mutation fits",
+        "S10": "the report has nothing this mutation fits",
+        "S3": "the report has nothing this mutation fits",
+        "S4": "the report has nothing this mutation fits",
+        "S5": "the report has nothing this mutation fits",
+        "S6a": "the report has nothing this mutation fits",
+        "S6b": "the report has nothing this mutation fits",
+        "S8": "the report has nothing this mutation fits"
+      }
+    }
+  },
+  "reports": [
+    "S1",
+    "S10",
+    "S11",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6a",
+    "S6b",
+    "S8"
+  ]
+}

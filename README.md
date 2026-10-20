@@ -9,7 +9,10 @@ Proof of Concept), Symbiosis Institute of Technology, Pune.
 
 > **Build in progress.** The design is complete and submitted as
 > `docs/POC_SPEC.md` (proposal v1.0.2); the implementation is being built
-> work package by work package against it. This README is rewritten in full,
+> work package by work package against it. **WP0-WP5 are done**: data and
+> knowledge base, normaliser and tools, detection, decision logic, and both
+> Critic gates with the fault-injection harness. The LangGraph workflow (WP6)
+> and the Streamlit pages (WP7) are next. This README is rewritten in full,
 > with measured results, when the build finishes. See `PLAN.md` for the plan
 > and `docs/DEVIATIONS.md` for every clarification made along the way.
 
@@ -29,7 +32,7 @@ workflow and the analyst.
 ## Requirements
 
 - Windows, Python 3.11 or later (built and tested on 3.14.5)
-- [Ollama](https://ollama.com) with `qwen3-coder:30b` — optional; mock mode is the default
+- [Ollama](https://ollama.com) with `qwen3.5:4b` — optional; mock mode is the default
   and needs no model at all
 
 ## Install and run (PowerShell)
@@ -46,8 +49,25 @@ Tests and evaluation:
 
 ```powershell
 pytest -q
-python -m soc_copilot.eval.run_suite
+python -m soc_copilot.eval.run_faults    # Table 32 catch rates, saved to resultspython -m soc_copilot.eval.run_suite     # the full metric suite (WP7)
 ```
+
+### Validation, as measured today
+
+Every claim released has to survive seventeen mechanical checks: seven at the
+Evidence Gate (are the facts true and sufficient?) and ten at the Report Gate (is
+the report true, complete and within policy?). To show the checks work, the
+harness injects the seventeen faults of spec Table 32 into correct facts and
+reports and asserts that the check the table assigns to each one is the check
+that fails.
+
+On the design set in mock mode, every mutation is caught by its own check on
+every report it fits, and no clean report fails any check. A mutation is applied
+only to a report it fits — M9 needs a discovered success, M10 and M11 a benign
+fact — so the fitting-report count is reported beside the catch rate and a
+mutation that fitted nothing cannot show a perfect score. Run
+`python -m soc_copilot.eval.run_faults` for the current table; it is saved to
+`results/` with the date and the configuration and knowledge-base hashes.
 
 ## Layout
 

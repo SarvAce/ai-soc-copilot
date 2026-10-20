@@ -101,3 +101,24 @@ def analysis_day() -> datetime:
 def at(hour: int, minute: int = 0) -> datetime:
     """A time on the analysis day, for building windows in tests."""
     return ANALYSIS_DAY + timedelta(hours=hour, minutes=minute)
+
+
+@pytest.fixture(scope="session")
+def design_runs():
+    """Every design scenario run cleanly in mock mode, through both gates (WP5)."""
+    from soc_copilot.eval.designset import clean_runs
+    return clean_runs()
+
+
+@pytest.fixture(scope="session")
+def catch_rates(design_runs):
+    """Table 32 fault injection over the whole design set, run once."""
+    from soc_copilot.eval.faults import inject_all
+    return inject_all(design_runs.runs, store_for=design_runs.store_for,
+                      kb=design_runs.kb, config=design_runs.config)
+
+
+@pytest.fixture(scope="session")
+def s1_run(design_runs):
+    """The clean S1 run, which the Appendix E.1 demonstration uses."""
+    return design_runs.runs["S1"]

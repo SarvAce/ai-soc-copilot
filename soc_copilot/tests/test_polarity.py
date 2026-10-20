@@ -11,7 +11,8 @@ from soc_copilot.core.polarity import (
 
 @pytest.mark.parametrize("topic", [
     "threat_intel_match", "spray_pattern", "unknown_usernames",
-    "success_after_failures", "persistence", "new_country",
+    "success_after_failures", "persistence", "mfa_device_registered",
+    "new_country",
 ])
 def test_every_malicious_topic_named_in_the_spec(topic):
     """Spec §16.1 lists exactly these as showing attack behaviour."""
@@ -57,3 +58,15 @@ def test_topic_lists_are_sorted_for_determinism():
     """Derived lists must not depend on set iteration order (spec §18.2)."""
     assert list(MALICIOUS_TOPICS) == sorted(MALICIOUS_TOPICS)
     assert list(BENIGN_TOPICS) == sorted(BENIGN_TOPICS)
+
+
+def test_both_forms_of_persistence_are_malicious():
+    """§16.1 names an MFA device registered and a password changed after a success.
+
+    They are separate topics because check R9 allows T1098.005 Device
+    Registration only with a device-registration fact, so "persistence" alone
+    could not tell the Report Gate which one happened.
+    """
+    assert polarity_for("mfa_device_registered") == "MALICIOUS"
+    assert polarity_for("persistence") == "MALICIOUS"
+    assert "mfa_device_registered" in MALICIOUS_TOPICS

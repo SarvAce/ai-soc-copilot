@@ -318,6 +318,12 @@ def s11(profiles: dict[str, UserProfile]) -> ScenarioSpec:
     # pass 2, and the cap of 1 leaves no pass in which to check it.
     events.append(record(_at(17, 40), "mfa_method_registered", "bob@corp.example",
                          src_ip=IP_S11_PIVOT, device_id="dev-b999"))
+    # One unrelated sign-in after the success horizon of the last sprayed
+    # account, so this log is NOT a coverage case. S11 is the unchecked-pivot
+    # scenario; S6a is the only truncated log (DEVIATIONS D20).
+    events.append(record(_at(18, 30), "sign_in", "tara@corp.example",
+                         outcome="success", src_ip=profiles["tara@corp.example"].home_ip,
+                         device_id=profiles["tara@corp.example"].devices[0]))
     dispositions = {account: "ATTACK_ATTEMPT_NO_ACCESS" for account in real}
     dispositions["bob@corp.example"] = "UNRESOLVED"
     return ScenarioSpec(

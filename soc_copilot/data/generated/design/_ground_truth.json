@@ -49,7 +49,7 @@
       "ravi@corp.example": "ATTACK_ATTEMPT_NO_ACCESS"
     },
     "case_disposition": "UNRESOLVED",
-    "events": 637,
+    "events": 638,
     "evidence_retries_cap": 1,
     "expected_passes": 2,
     "hypothesis": "SPRAY",

@@ -2,12 +2,17 @@
 #
 # Item IDs follow the form HYPOTHESIS.Qn used in spec B.2 ("ATO.Q2").
 #
-# scope   account  the item must be answered for each account in scope
-#         case     one answer covers the whole case (it is about the source IP)
+# scope   account  the item must be answered for each account in scope. Only
+#                  inventory users get account-scoped checks: a sprayed name
+#                  that matches no account cannot have a success to find.
+#         case     the item is about the source address, so it is answered once
+#                  PER SOURCE. An address the investigation discovers brings its
+#                  own copies of these items with it, which is what leaves the
+#                  pivot of scenario S11 unanswered (DEVIATIONS D25).
 # tools   the catalogue tools that can answer the item, best first. The Planner
-#         schedules the first one whose fact is not already present, which is why
-#         an account upgraded inside a spray needs no second failure count: T8
-#         already reported its attempts (spec §14.8, Figure 4).
+#         schedules the first one whose fact is not already present; when the
+#         identical query has already run, its facts take the new item on
+#         instead of the query running twice.
 # required  true items must all be answered or the Evidence Gate raises
 #           MISSING_CHECK (check E6); the disposition table's row 1 then fires.
 
