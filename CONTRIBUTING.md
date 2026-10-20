@@ -1,218 +1,53 @@
-# Contributing to AI SOC Copilot
+# Contributing
 
-Thank you for your interest in contributing! This document provides guidelines and instructions for contributing to the project.
+AI-SOC Copilot is a Proof of Concept for CA-3 of the Flexi-Credit Course 2026–27,
+built by Sarvesh Dungarwal and Sanjana Bhowal. `docs/POC_SPEC.md` (proposal v1.0.2)
+is the source of truth; the code, the report and the deck are graded together, so
+the code uses the spec's names, numbers, tables and figures.
 
-## Code of Conduct
+## Setting up (Windows PowerShell)
 
-- Be respectful and inclusive
-- Provide constructive feedback
-- Focus on the code, not the person
-- Help others learn and grow
-
-## Getting Started
-
-### 1. Fork and Clone
-```bash
-git clone https://github.com/yourusername/ai-soc-copilot.git
-cd ai-soc-copilot
-```
-
-### 2. Create a Virtual Environment
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-### 3. Install Dependencies
-```bash
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-pip install pytest pytest-cov black flake8  # Dev dependencies
 ```
 
-## Development Workflow
+## Working rules
 
-### Creating a Feature Branch
-```bash
-git checkout -b feature/your-feature-name
+1. **The spec decides.** Never change an ID, threshold, window, rule row, check or
+   expected outcome. Where the spec is silent, choose the simplest option that fits
+   it and add a row to `docs/DEVIATIONS.md` saying what, why and which section.
+2. **Rules decide; the model writes.** The Detector, Investigator, both Critic gates,
+   the disposition table and the priority matrix are plain deterministic Python. A
+   language model may only write the narrative and suggest extra checks in the
+   Planner's suggestion mode. Model output never sets a count, disposition, priority,
+   recommendation or ATT&CK ID.
+3. **No invented results.** Numbers come only from `python -m soc_copilot.eval.run_suite`
+   and are saved in `results/` with the date and a config hash. Report every miss.
+4. **Configuration, not magic numbers.** Every threshold, window, cap and seed lives
+   in `soc_copilot/config.yaml` (spec Table 38).
+
+## Code style
+
+The whole PoC has to be explainable in a viva, so:
+
+- small functions (about 40 lines at most) with plain names and type hints;
+- a one-line docstring on every function;
+- a module docstring naming the spec part it implements, for example
+  `"""Evidence Gate checks E1-E7 (spec §16.2, Table 30)."""`;
+- comments explain *why*, not *what*;
+- Pydantic models for data and functions for logic — no metaprogramming, no deep
+  class hierarchies;
+- files under about 300 lines, with one test file per module.
+
+Dependencies are the seven in `requirements.txt`. Ask before adding another.
+
+## Before every commit
+
+```powershell
+pytest -q
 ```
 
-### Coding Standards
-
-- **Python**: Follow PEP 8
-- **Type Hints**: Use type annotations where possible
-- **Documentation**: Add docstrings to functions and classes
-- **Testing**: Write tests for new features
-
-### Format Code
-```bash
-black app/ tests/
-flake8 app/ tests/
-```
-
-### Run Tests
-```bash
-pytest tests/ -v --cov=app
-```
-
-## Commit Messages
-
-Use clear, descriptive commit messages:
-
-```
-✨ Add new threat detection model
-🐛 Fix incident parsing bug
-📚 Update API documentation
-🔧 Refactor severity service
-```
-
-Commit message format:
-```
-<type>: <subject>
-
-<body>
-
-<footer>
-```
-
-Types:
-- `✨ feat` - New feature
-- `🐛 fix` - Bug fix
-- `📚 docs` - Documentation
-- `♻️ refactor` - Code refactoring
-- `🧪 test` - Add tests
-- `🔧 chore` - Build/tooling
-
-## Pull Request Process
-
-1. **Create PR with descriptive title**
-   - Reference any related issues: "Closes #123"
-
-2. **Provide detailed description**
-   ```markdown
-   ## Description
-   Brief description of changes
-
-   ## Type of Change
-   - [ ] Bug fix
-   - [ ] New feature
-   - [ ] Documentation update
-
-   ## Testing
-   How to test these changes
-
-   ## Screenshots
-   If applicable, add screenshots
-   ```
-
-3. **Ensure tests pass**
-   ```bash
-   pytest tests/ -v
-   ```
-
-4. **Code review**
-   - Address feedback
-   - Update code as needed
-   - Mark conversations as resolved
-
-5. **Merge**
-   - Squash commits if necessary
-   - Delete feature branch
-
-## Adding New Features
-
-### Example: Adding a New Service
-
-1. Create `backend/app/services/my_service.py`
-2. Add tests in `backend/tests/test_my_service.py`
-3. Update documentation in `docs/`
-4. Create PR with examples
-
-### Example: Adding an API Endpoint
-
-1. Add route in `backend/app/api/`
-2. Create schema in `backend/app/schemas/`
-3. Add to main.py router
-4. Document in `docs/api_design.md`
-5. Add tests
-
-## Testing Guidelines
-
-### Unit Tests
-```python
-def test_threat_detection():
-    result = detect_threat("malicious log")
-    assert result.severity == "high"
-```
-
-### Integration Tests
-```python
-def test_api_analyze_endpoint(client):
-    response = client.post("/analyze", json={"log_text": "..."})
-    assert response.status_code == 200
-```
-
-Run with coverage:
-```bash
-pytest tests/ --cov=app --cov-report=html
-```
-
-## Documentation
-
-- Update README.md for major changes
-- Add docstrings to new functions
-- Document new features in docs/
-- Include examples where helpful
-
-## Reporting Issues
-
-### Bug Reports
-- Describe the bug clearly
-- Steps to reproduce
-- Expected vs actual behavior
-- Environment (OS, Python version)
-- Logs/screenshots if applicable
-
-### Feature Requests
-- Clearly describe the feature
-- Explain the use case
-- Provide examples if possible
-- Discuss implementation approach
-
-## Project Structure
-
-Keep the structure organized:
-- API endpoints → `app/api/`
-- Business logic → `app/services/`
-- Data models → `app/schemas/` and `app/models/`
-- Agents → `app/agents/`
-- Configuration → `app/core/`
-- Tests → `tests/`
-
-## Areas for Contribution
-
-- **Frontend**: React/Next.js dashboard
-- **Backend**: New agents, services, API endpoints
-- **Infrastructure**: Docker, Kubernetes configs
-- **Documentation**: Guides, API docs, architecture diagrams
-- **Testing**: Expand test coverage
-- **Performance**: Optimization, caching
-- **Security**: Auth, rate limiting, validation
-
-## Need Help?
-
-- Check existing issues and discussions
-- Review documentation in `docs/`
-- Look at existing code for patterns
-- Ask in pull request comments
-
-## Recognition
-
-Contributors will be:
-- Listed in README.md
-- Credited in commit messages
-- Acknowledged in releases
-
----
-
-Thank you for contributing to AI SOC Copilot! 🎉
+Every failure gets fixed before the next work package builds on it. Work follows the
+work packages in spec §11.7 (Table 17); each "Done when" column is the acceptance test.

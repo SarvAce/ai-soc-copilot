@@ -1,0 +1,103 @@
+# Playbook steps (spec Table 19, Table 31 check R8).
+#
+# Adapted from the prototype's app/knowledge_base/security_playbooks.py as
+# Table 39 requires: every action now has a step ID, a type and an approval
+# flag, so the Report Gate can check a recommendation instead of trusting it.
+#
+# The prototype's four BRUTE_FORCE actions survive here as PB-SPR-01
+# ("Block source IP"), PB-SPR-02 ("Review account lockout policy"),
+# PB-SPR-03 ("Investigate successful logins") and PB-GUESS-02 ("Enable MFA").
+# Its PORT_SCAN, MALWARE, RANSOMWARE and SQL_INJECTION playbooks are dropped:
+# this PoC covers identity attacks only (spec §9, "deliberately excludes").
+#
+# type           investigate | contain | communicate
+# requires_approval  true for any step that would change a system
+#                    (requirement SOC-PoC-008); the PoC never executes a step.
+
+version: "1.0"
+
+steps:
+
+  # --- Password guessing (hypothesis GUESS) ---------------------------------
+  - step_id: PB-GUESS-01
+    hypothesis: GUESS
+    action: Review failed sign-ins for the account over the last 24 hours
+    type: investigate
+    requires_approval: false
+
+  - step_id: PB-GUESS-02
+    hypothesis: GUESS
+    action: Enforce multi-factor authentication for the account
+    type: contain
+    requires_approval: true
+
+  - step_id: PB-GUESS-03
+    hypothesis: GUESS
+    action: Contact the user to confirm whether they were signing in
+    type: communicate
+    requires_approval: false
+
+  # --- Password spraying (hypothesis SPRAY) ---------------------------------
+  - step_id: PB-SPR-01
+    hypothesis: SPRAY
+    action: Block the source address at the edge
+    type: contain
+    requires_approval: true
+
+  - step_id: PB-SPR-02
+    hypothesis: SPRAY
+    action: Review the account lockout policy
+    type: investigate
+    requires_approval: false
+
+  - step_id: PB-SPR-03
+    hypothesis: SPRAY
+    action: Check every account targeted from the source for a successful sign-in
+    type: investigate
+    requires_approval: false
+
+  - step_id: PB-SPR-04
+    hypothesis: SPRAY
+    action: Notify the owners of the targeted accounts
+    type: communicate
+    requires_approval: false
+
+  # --- Account takeover (hypothesis ATO) ------------------------------------
+  - step_id: PB-ATO-01
+    hypothesis: ATO
+    action: Contact the account owner out of band
+    type: communicate
+    requires_approval: false
+
+  - step_id: PB-ATO-02
+    hypothesis: ATO
+    action: Revoke the account's active sessions
+    type: contain
+    requires_approval: true
+
+  - step_id: PB-ATO-03
+    hypothesis: ATO
+    action: Force a password reset for the account
+    type: contain
+    requires_approval: true
+
+  - step_id: PB-ATO-04
+    hypothesis: ATO
+    action: Review the multi-factor authentication methods registered for the account
+    type: investigate
+    requires_approval: false
+
+  # --- Unresolved cases -----------------------------------------------------
+  # Offered when a gap could not be closed, so the escalation says what to do
+  # next instead of guessing a verdict (spec §15.5).
+  - step_id: PB-UNRES-01
+    hypothesis: UNRESOLVED
+    action: Retrieve the missing log segment from the source system
+    type: investigate
+    requires_approval: false
+
+  - step_id: PB-UNRES-02
+    hypothesis: UNRESOLVED
+    action: Treat the account as possibly compromised until the gap is closed
+    type: communicate
+    requires_approval: false

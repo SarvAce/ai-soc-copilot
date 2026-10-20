@@ -1,0 +1,41 @@
+# Allowed ATT&CK technique IDs per hypothesis (spec Table 19, check R9).
+#
+# Replaces the prototype's app/agents/mitre_mapper.py as Table 39 requires.
+# Two corrections carried out there:
+#   - T1204 (User Execution) is REMOVED. The prototype mapped MALWARE to it
+#     with no execution evidence at all (audit finding L11).
+#   - Sub-techniques are ADDED, so guessing and spraying are no longer both
+#     reported as the parent technique T1110.
+# The prototype's T1046, T1486 and T1190 go with their keyword threat types:
+# this PoC covers identity attacks only.
+#
+# requires_fact names the fact kind that must exist before the Reporter may
+# cite the technique. R9 rejects any ID whose required fact is missing, which
+# is what stops "T1078 Valid Accounts" appearing on a case with no success.
+
+version: "1.0"
+
+techniques:
+
+  GUESS:
+    - id: T1110.001
+      name: "Brute Force: Password Guessing"
+      requires_fact: failure_count
+
+  SPRAY:
+    - id: T1110.003
+      name: "Brute Force: Password Spraying"
+      requires_fact: spray_pattern
+
+  ATO:
+    - id: T1110
+      name: "Brute Force"
+      requires_fact: failure_count
+
+    - id: T1078
+      name: "Valid Accounts"
+      requires_fact: success_after_failures
+
+    - id: T1098.005
+      name: "Account Manipulation: Device Registration"
+      requires_fact: mfa_device_registered

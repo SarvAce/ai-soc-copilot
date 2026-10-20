@@ -1,0 +1,14 @@
+# AI-SOC Copilot PoC — direct dependencies, pinned (spec Table 24, Table 39).
+# UTF-8, exact versions. Python 3.11 or later; built and tested on 3.14.5.
+#
+# Install (Windows PowerShell):
+#   python -m venv .venv; .venv\Scripts\Activate.ps1
+#   pip install -r requirements.txt
+
+streamlit==1.66.0
+langgraph==1.2.15
+pydantic==2.14.1
+pandas==3.0.6
+PyYAML==6.0.3
+ollama==0.6.3
+pytest==9.1.1
