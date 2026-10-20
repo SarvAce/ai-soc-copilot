@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from soc_copilot.data.world import (
-    ANALYSIS_DAY, PHONE_AGENT, VPN_EGRESS, UserProfile, record,
+    ANALYSIS_DAY, PHONE_AGENT, VPN_EGRESS, UserProfile, failures, record, spray,
 )
 
 # Attacker addresses. All of 203.0.113.0/24 is reserved for documentation
@@ -68,33 +68,17 @@ def _failures(
     user: str, src_ip: str, start: datetime, count: int, step_seconds: int,
     *, device_id: str = "", reason: str = "bad_password", user_agent: str | None = None,
 ) -> list[dict[str, Any]]:
-    """A run of failed sign-ins, evenly spaced."""
-    extra = {"user_agent": user_agent} if user_agent else {}
-    return [
-        record(start + timedelta(seconds=index * step_seconds), "sign_in", user,
-               outcome="failure", failure_reason=reason, src_ip=src_ip,
-               device_id=device_id, **extra)
-        for index in range(count)
-    ]
+    """A run of failed sign-ins, evenly spaced (the shape lives in world.py)."""
+    return failures(user, src_ip, start, count, step_seconds, device_id=device_id,
+                    reason=reason, user_agent=user_agent)
 
 
 def _spray(
     accounts: list[str], src_ip: str, start: datetime, minutes: int, attempts: int = 2
 ) -> list[dict[str, Any]]:
-    """One source failing against many accounts, a few attempts each (rule R-SPRAY)."""
-    events: list[dict[str, Any]] = []
-    # Rounds are spread across the window so the median attempts per account
-    # stays at `attempts`, which is what R-SPRAY tests.
-    round_gap = timedelta(minutes=minutes) / attempts
-    per_account = round_gap / (len(accounts) + 1)
-    for round_index in range(attempts):
-        for position, account in enumerate(accounts):
-            ts = start + round_gap * round_index + per_account * position
-            reason = "unknown_user" if "@corp.example" not in account or account in GHOSTS \
-                else "bad_password"
-            events.append(record(ts, "sign_in", account, outcome="failure",
-                                 failure_reason=reason, src_ip=src_ip))
-    return events
+    """A spray whose unknown names are this module's ghosts and injection string."""
+    return spray(accounts, src_ip, start, minutes, attempts,
+                 unknown=set(GHOSTS) | {INJECTION_USERNAME})
 
 
 # --- The scenarios ---------------------------------------------------------

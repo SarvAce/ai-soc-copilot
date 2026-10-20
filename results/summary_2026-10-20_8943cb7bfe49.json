@@ -1,0 +1,304 @@
+{
+  "config_hash": "8943cb7bfe49",
+  "datasets": {
+    "design set": "S1-S11, 10 cases",
+    "fault set": "17 mutations over 10 clean reports",
+    "held-out set": "100 cases, seed 42"
+  },
+  "heldout_by_template": {
+    "S1": {
+      "alert_correct": 12,
+      "below_threshold": 3,
+      "cases": 12
+    },
+    "S10": {
+      "alert_correct": 11,
+      "below_threshold": 2,
+      "cases": 11
+    },
+    "S2": {
+      "alert_correct": 11,
+      "below_threshold": 2,
+      "cases": 11
+    },
+    "S3": {
+      "alert_correct": 11,
+      "below_threshold": 2,
+      "cases": 11
+    },
+    "S4": {
+      "alert_correct": 11,
+      "below_threshold": 2,
+      "cases": 11
+    },
+    "S5": {
+      "alert_correct": 11,
+      "below_threshold": 3,
+      "cases": 11
+    },
+    "S6a": {
+      "alert_correct": 11,
+      "below_threshold": 2,
+      "cases": 11
+    },
+    "S6b": {
+      "alert_correct": 11,
+      "below_threshold": 2,
+      "cases": 11
+    },
+    "S8": {
+      "alert_correct": 11,
+      "below_threshold": 2,
+      "cases": 11
+    }
+  },
+  "kb_hash": "68368958f1c7",
+  "measured_on": "2026-10-20",
+  "metrics": [
+    {
+      "definition": "Attack cases that open a case, over all in-scope attack cases",
+      "detail": {
+        "attacks": 80,
+        "opened": 80
+      },
+      "misses": [],
+      "name": "Alert recall",
+      "target": "100% for the in-scope templates (S1-S6, S8, S10); S9 is a documented miss",
+      "value": "100.0% (80/80)",
+      "verdict": "met"
+    },
+    {
+      "definition": "Cases that should open, over all cases opened",
+      "detail": {
+        "below_threshold": 20,
+        "opened": 80
+      },
+      "misses": [],
+      "name": "Alert precision",
+      "target": "No case for S7 or for any N - 1 variant",
+      "value": "100.0% (80/80)",
+      "verdict": "met"
+    },
+    {
+      "definition": "Correct per-account dispositions over all, shown as a confusion matrix",
+      "detail": {
+        "correct": 290,
+        "matrix": {
+          "ATTACK_ATTEMPT_NO_ACCESS|ATTACK_ATTEMPT_NO_ACCESS": 228,
+          "LIKELY_BENIGN|LIKELY_BENIGN": 26,
+          "SUSPECTED_COMPROMISE|SUSPECTED_COMPROMISE": 18,
+          "UNRESOLVED|UNRESOLVED": 18
+        },
+        "total": 290
+      },
+      "misses": [],
+      "name": "Disposition accuracy",
+      "target": "At least 95%",
+      "value": "100.0% (290/290)",
+      "verdict": "met"
+    },
+    {
+      "definition": "Takeovers labelled LIKELY_BENIGN",
+      "detail": {},
+      "misses": [],
+      "name": "Dangerous misses",
+      "target": "0",
+      "value": "0",
+      "verdict": "met"
+    },
+    {
+      "definition": "Released claims passing every Report Gate check, over all released claims",
+      "detail": {
+        "claims": 1258
+      },
+      "misses": [],
+      "name": "Groundedness",
+      "target": "100%, enforced by the gate",
+      "value": "100.0% (1258/1258)",
+      "verdict": "met"
+    },
+    {
+      "definition": "Detected mutations over injected mutations, per mutation type",
+      "detail": {
+        "M1": {
+          "catch_rate": 1.0,
+          "caught": 10,
+          "expected_check": "E2",
+          "fitted": 10
+        },
+        "M10": {
+          "catch_rate": 1.0,
+          "caught": 3,
+          "expected_check": "R4",
+          "fitted": 3
+        },
+        "M11": {
+          "catch_rate": 1.0,
+          "caught": 3,
+          "expected_check": "R5",
+          "fitted": 3
+        },
+        "M12": {
+          "catch_rate": 1.0,
+          "caught": 10,
+          "expected_check": "R6",
+          "fitted": 10
+        },
+        "M13": {
+          "catch_rate": 1.0,
+          "caught": 10,
+          "expected_check": "R7",
+          "fitted": 10
+        },
+        "M14": {
+          "catch_rate": 1.0,
+          "caught": 10,
+          "expected_check": "R8",
+          "fitted": 10
+        },
+        "M15": {
+          "catch_rate": 1.0,
+          "caught": 10,
+          "expected_check": "R9",
+          "fitted": 10
+        },
+        "M16": {
+          "catch_rate": 1.0,
+          "caught": 10,
+          "expected_check": "R10",
+          "fitted": 10
+        },
+        "M17": {
+          "catch_rate": 1.0,
+          "caught": 10,
+          "expected_check": "R1",
+          "fitted": 10
+        },
+        "M2": {
+          "catch_rate": 1.0,
+          "caught": 10,
+          "expected_check": "E1/R2",
+          "fitted": 10
+        },
+        "M3": {
+          "catch_rate": 1.0,
+          "caught": 2,
+          "expected_check": "E3",
+          "fitted": 2
+        },
+        "M4": {
+          "catch_rate": 1.0,
+          "caught": 10,
+          "expected_check": "R3",
+          "fitted": 10
+        },
+        "M5": {
+          "catch_rate": 1.0,
+          "caught": 10,
+          "expected_check": "R3",
+          "fitted": 10
+        },
+        "M6": {
+          "catch_rate": 1.0,
+          "caught": 5,
+          "expected_check": "E4",
+          "fitted": 5
+        },
+        "M7": {
+          "catch_rate": 1.0,
+          "caught": 5,
+          "expected_check": "E5",
+          "fitted": 5
+        },
+        "M8": {
+          "catch_rate": 1.0,
+          "caught": 9,
+          "expected_check": "E6",
+          "fitted": 9
+        },
+        "M9": {
+          "catch_rate": 1.0,
+          "caught": 2,
+          "expected_check": "E7",
+          "fitted": 2
+        }
+      },
+      "misses": [],
+      "name": "Critic catch rate",
+      "target": "At least 95% for each type",
+      "value": "100% lowest of 17 rated mutation types",
+      "verdict": "met"
+    },
+    {
+      "definition": "Clean reports that fail a gate",
+      "detail": {
+        "expected_gaps": {
+          "S11": [
+            "E6"
+          ],
+          "S6a": [
+            "E5"
+          ],
+          "S6b": [
+            "E5"
+          ]
+        }
+      },
+      "misses": [],
+      "name": "Critic false alarms",
+      "target": "0%",
+      "value": "0.0% (0/10)",
+      "verdict": "met"
+    },
+    {
+      "definition": "Runs finishing within 17 completed node executions",
+      "detail": {
+        "bound": 17,
+        "most_node_executions": 10
+      },
+      "misses": [],
+      "name": "Termination",
+      "target": "100%, with no recursion errors",
+      "value": "100.0% (80/80)",
+      "verdict": "met"
+    },
+    {
+      "definition": "Identical report hash across three mock-mode runs",
+      "detail": {
+        "runs_per_scenario": 3
+      },
+      "misses": [],
+      "name": "Determinism",
+      "target": "100%",
+      "value": "10/10 scenarios stable",
+      "verdict": "met"
+    },
+    {
+      "definition": "Checks automated per case; seconds per case",
+      "detail": {
+        "facts_per_case": 15.95,
+        "note": "Measured end to end, including generating the log. No analyst time saving is claimed (\u00a718.5).",
+        "queries_per_case": 14.59,
+        "seconds_per_case": 0.22
+      },
+      "misses": [],
+      "name": "Efficiency",
+      "target": "Reported; no target",
+      "value": "14.6 queries and 15.9 facts per case, 0.22 s per case",
+      "verdict": "reported"
+    },
+    {
+      "definition": "Share of drafts needing a redraft or the template, and which checks fired",
+      "detail": {
+        "checks_fired": {},
+        "mode": "mock"
+      },
+      "misses": [],
+      "name": "Narrative model (mock)",
+      "target": "Reported; no target",
+      "value": "0.0% (0/80)",
+      "verdict": "reported"
+    }
+  ],
+  "mode": "mock"
+}

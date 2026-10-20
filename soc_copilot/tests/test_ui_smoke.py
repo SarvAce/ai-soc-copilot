@@ -47,7 +47,8 @@ def _text_of(app: AppTest) -> str:
 
 
 @pytest.mark.parametrize("page", ["Alert queue", "Investigation trace",
-                                  "Case file", "Analyst review", "Architecture"])
+                                  "Case file", "Analyst review", "Evaluation",
+                                  "Architecture"])
 def test_every_milestone_page_renders(page):
     """Every page of the application renders without raising."""
     app = _app(page=page)
@@ -58,7 +59,7 @@ def test_every_milestone_page_renders(page):
 def test_every_view_says_the_data_is_synthetic():
     """CLAUDE.md rule 11: label every view that shows synthetic data."""
     for page in ("Alert queue", "Investigation trace", "Case file",
-                 "Analyst review", "Architecture"):
+                 "Analyst review", "Evaluation", "Architecture"):
         app = _app(page=page)
         assert "SYNTHETIC DATA" in _text_of(app), page
 
@@ -79,7 +80,7 @@ def test_the_sidebar_offers_the_five_figure_5_controls():
     assert app.sidebar.selectbox[1].value == "off"
     assert list(app.sidebar.radio[-1].options) == [
         "Alert queue", "Investigation trace", "Case file", "Analyst review",
-        "Architecture"]
+        "Evaluation", "Architecture"]
 
 
 @pytest.mark.parametrize("scenario_id", DEMO)
@@ -377,3 +378,42 @@ def test_the_trace_shows_the_analyst_decision_and_its_audit_entry():
     assert "the interrupt payload" in text        # what the analyst was asked
     assert "node analyst_review" in text          # its audit entry
     assert "decision Approve" in text
+
+
+# --- the evaluation page (spec §18.2, Table 33) ---------------------------
+
+
+def test_the_evaluation_page_shows_the_saved_measurement():
+    """Table 34, the confusion matrix and every miss, read from results/."""
+    from soc_copilot.ui.evaluation import newest_result
+
+    app = _app(page="Evaluation")
+    _no_exception(app)
+    text = _text_of(app)
+    if newest_result() is None:
+        # A fresh clone has measured nothing yet, and says so rather than
+        # drawing an empty table.
+        assert "No measurement has been saved yet" in text
+        return
+    for panel in ("Table 34 · metrics and acceptance criteria",
+                  "Confusion matrix", "Every miss", "Critic catch rate",
+                  "Held-out set by template"):
+        assert panel in text, panel
+    assert "internal validity" not in text or "not real-world" in text
+
+
+def test_the_evaluation_page_never_claims_a_time_saving():
+    """§18.5: report checks automated and seconds per case, and claim no more."""
+    app = _app(page="Evaluation")
+    _no_exception(app)
+    text = _text_of(app).lower()
+    assert "no analyst time saving is claimed" in text
+    for forbidden in ("time saved", "faster than an analyst", "hours saved"):
+        assert forbidden not in text
+
+
+def test_the_evaluation_page_offers_the_summary_download():
+    """The measurement has to leave the application as the file it was saved as."""
+    app = _app(page="Evaluation")
+    _no_exception(app)
+    assert "Download summary.md" in [button.label for button in app.download_button]

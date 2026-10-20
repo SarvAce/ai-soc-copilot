@@ -9,15 +9,13 @@ Proof of Concept), Symbiosis Institute of Technology, Pune.
 
 > **Build in progress.** The design is complete and submitted as
 > `docs/POC_SPEC.md` (proposal v1.0.2); the implementation is being built
-> work package by work package against it. **WP0-WP6 are done, and Milestone 1
-> of WP7**: data and knowledge base, normaliser and tools, detection, decision
-> logic, both Critic gates with the fault-injection harness, the LangGraph
-> workflow with its audit log and Ollama mode, and five Streamlit pages — the
-> alert queue, the investigation trace, the case file, the analyst review and
-> the architecture view. Scenarios S1, S2, S3, S4, S6a and S8 run end to end in
-> the application, in mock mode and in Ollama mode. Still to come: the
-> Evaluation page, the held-out set and the full metric suite, and the added
-> value of WP8.
+> work package by work package against it. **WP0-WP7 are done**: data and
+> knowledge base, normaliser and tools, detection, decision logic, both Critic
+> gates with the fault-injection harness, the LangGraph workflow with its audit
+> log and Ollama mode, all six Streamlit pages, the 100-case held-out set and
+> the full Table 34 metric suite. Scenarios S1-S11 reproduce their Table 20
+> outcomes and S1, S2, S3, S4, S6a and S8 run end to end in the application, in
+> mock mode and in Ollama mode. Still to come: the added value of WP8.
 > This README is rewritten in full, with measured results, when the build
 > finishes. See `PLAN.md` for the plan and `docs/DEVIATIONS.md` for every
 > clarification made along the way.
@@ -65,6 +63,7 @@ Five pages, in the order a demonstration uses them:
 | **Investigation trace** | the whole chain of node executions, as Figure 4 draws it: one expander per execution, naming what it received and what it produced — the plan's tool calls, each query with its coverage, the facts with their labels and polarity, every E1–E7 and R1–R10 result with its reason, each draft and why it was rejected, the route taken and why, and the analyst's decision with its audit entry. The steps that used the model are marked. |
 | **Case file** | the released case file of Figure 5, with both downloads |
 | **Analyst review** | the same case file with Approve, Override and Escalate |
+| **Evaluation** | the Table 34 metrics, the per-account confusion matrix, the Table 32 catch rate per mutation and every miss, read from the newest file in `results/` — or re-measured on the spot |
 | **Architecture** | `fig2_architecture.png` beside the compiled LangGraph workflow for the selected case, with the nodes that ran highlighted, the three Table 25 loops marked when they were taken, and the counters: `evidence_retries`, `report_retries` and completed node executions out of 17 |
 
 The architecture drawing is read from the compiled `StateGraph` itself, so it
@@ -91,6 +90,24 @@ The suite runs offline and needs no model: the only tests that use Ollama are in
 `test_ollama_live.py`, and they skip when it is not running. Every measurement
 command writes a file to `results/` with the date and the configuration and
 knowledge-base hashes, so no number here is ever quoted from memory.
+
+### Results, as measured today
+
+`results/summary.md` holds the current Table 34 table, the confusion matrix and
+every miss, with the date and the configuration and knowledge-base hashes it
+was measured with. On the 100-case held-out set (seed 42, mock mode) every
+metric that has a target met it, and no metric recorded a miss. Read that file
+rather than this paragraph: it is written by the command, not by hand.
+
+**What that does and does not mean.** The held-out set is randomised but
+synthetic, and each case inherits its right answer from the design scenario it
+was generated from, so a perfect score measures internal validity — the rules
+reach the answers the generator says are right — and not real-world detection
+performance. The one documented miss of the design, S9 (low and slow, below
+every window threshold), is not one of the held-out templates and so cannot
+appear in that table; `tests/test_detector.py` reproduces it. No analyst time
+saving is claimed; checks automated and seconds per case are reported instead
+(§18.5).
 
 ### Validation, as measured today
 

@@ -16,6 +16,7 @@ import streamlit as st
 from soc_copilot.config import get_config
 from soc_copilot.ui import architecture as architecture_page
 from soc_copilot.ui import case_file as case_file_page
+from soc_copilot.ui import evaluation as evaluation_page
 from soc_copilot.ui import queue as queue_page
 from soc_copilot.ui import review as review_page
 from soc_copilot.ui import trace as trace_page
@@ -26,7 +27,7 @@ from soc_copilot.ui.engine import (
 )
 
 PAGES = ("Alert queue", "Investigation trace", "Case file", "Analyst review",
-         "Architecture")
+         "Evaluation", "Architecture")
 
 SCENARIO_LABELS = {
     "S1": "S1 · takeover with persistence",
@@ -142,6 +143,8 @@ def main() -> None:
         case_file_view(settings)
     elif page == "Architecture":
         architecture_page.render(settings)
+    elif page == "Evaluation":
+        evaluation_page.render(settings)
     else:
         review_page.render(settings)
 

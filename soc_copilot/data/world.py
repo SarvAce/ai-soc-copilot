@@ -155,3 +155,45 @@ def noise_events(
                 device_id=rng.choice(profile.devices),
             ))
     return events
+
+
+# --- Shapes both datasets build (spec §12.5) -------------------------------
+#
+# The design scenarios and the held-out set build the same two shapes: a run of
+# failures against one account, and one source failing against many. They live
+# here so the two datasets cannot drift apart in what "a spray" means.
+
+
+def failures(
+    user: str, src_ip: str, start: datetime, count: int, step_seconds: int,
+    *, device_id: str = "", reason: str = "bad_password",
+    user_agent: str | None = None,
+) -> list[dict[str, Any]]:
+    """A run of failed sign-ins, evenly spaced (rules R-GUESS and R-SAF)."""
+    extra = {"user_agent": user_agent} if user_agent else {}
+    return [
+        record(start + timedelta(seconds=index * step_seconds), "sign_in", user,
+               outcome="failure", failure_reason=reason, src_ip=src_ip,
+               device_id=device_id, **extra)
+        for index in range(count)
+    ]
+
+
+def spray(
+    accounts: list[str], src_ip: str, start: datetime, minutes: int,
+    attempts: int = 2, unknown: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """One source failing against many accounts, a few attempts each (rule R-SPRAY)."""
+    events: list[dict[str, Any]] = []
+    missing = unknown or set()
+    # Rounds are spread across the window so the median attempts per account
+    # stays at `attempts`, which is what R-SPRAY tests.
+    round_gap = timedelta(minutes=minutes) / attempts
+    per_account = round_gap / (len(accounts) + 1)
+    for round_index in range(attempts):
+        for position, account in enumerate(accounts):
+            ts = start + round_gap * round_index + per_account * position
+            reason = "unknown_user" if account in missing else "bad_password"
+            events.append(record(ts, "sign_in", account, outcome="failure",
+                                 failure_reason=reason, src_ip=src_ip))
+    return events
