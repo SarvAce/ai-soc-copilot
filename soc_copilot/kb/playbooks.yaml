@@ -1,4 +1,4 @@
-# Playbook steps (spec Table 19, Table 31 check R8).
+# Playbook steps (spec Table 19, Figure 5, Table 31 check R8).
 #
 # Adapted from the prototype's app/knowledge_base/security_playbooks.py as
 # Table 39 requires: every action now has a step ID, a type and an approval
@@ -10,9 +10,16 @@
 # Its PORT_SCAN, MALWARE, RANSOMWARE and SQL_INJECTION playbooks are dropped:
 # this PoC covers identity attacks only (spec §9, "deliberately excludes").
 #
-# type           investigate | contain | communicate
+# action   a template. {user} renders the account's short name ("bob") and
+#          {src_ip} the case's source address, so the four steps Figure 5
+#          shows for scenario S2 render exactly as drawn there.
+# type     investigate | contain | communicate
 # requires_approval  true for any step that would change a system
-#                    (requirement SOC-PoC-008); the PoC never executes a step.
+#          (requirement SOC-PoC-008); the PoC never executes a step.
+# requires  none | success | persistence — the finding the step depends on,
+#          so "revoke the sessions" is never offered on a case with no success.
+# source_containment  true for the one step that blocks the attack source; it
+#          is offered on a takeover case too, because the source is the same.
 
 version: "1.0"
 
@@ -21,71 +28,84 @@ steps:
   # --- Password guessing (hypothesis GUESS) ---------------------------------
   - step_id: PB-GUESS-01
     hypothesis: GUESS
-    action: Review failed sign-ins for the account over the last 24 hours
+    action: Review failed sign-ins for {user} over the last 24 hours
     type: investigate
     requires_approval: false
+    requires: none
 
   - step_id: PB-GUESS-02
     hypothesis: GUESS
-    action: Enforce multi-factor authentication for the account
+    action: Enforce multi-factor authentication for {user}
     type: contain
     requires_approval: true
+    requires: none
 
   - step_id: PB-GUESS-03
     hypothesis: GUESS
-    action: Contact the user to confirm whether they were signing in
+    action: Contact {user} to confirm whether they were signing in
     type: communicate
     requires_approval: false
+    requires: none
 
   # --- Password spraying (hypothesis SPRAY) ---------------------------------
   - step_id: PB-SPR-01
     hypothesis: SPRAY
-    action: Block the source address at the edge
+    action: Block {src_ip} at the edge
     type: contain
     requires_approval: true
+    requires: none
+    source_containment: true
 
   - step_id: PB-SPR-02
     hypothesis: SPRAY
     action: Review the account lockout policy
     type: investigate
     requires_approval: false
+    requires: none
 
   - step_id: PB-SPR-03
     hypothesis: SPRAY
-    action: Check every account targeted from the source for a successful sign-in
+    action: Check every account targeted from {src_ip} for a successful sign-in
     type: investigate
     requires_approval: false
+    requires: none
 
   - step_id: PB-SPR-04
     hypothesis: SPRAY
     action: Notify the owners of the targeted accounts
     type: communicate
     requires_approval: false
+    requires: none
 
   # --- Account takeover (hypothesis ATO) ------------------------------------
+  # These four are the steps Figure 5 draws on the S2 case file.
   - step_id: PB-ATO-01
     hypothesis: ATO
-    action: Contact the account owner out of band
+    action: Contact {user} out of band
     type: communicate
     requires_approval: false
+    requires: success
 
   - step_id: PB-ATO-02
     hypothesis: ATO
-    action: Revoke the account's active sessions
+    action: Revoke {user}'s active sessions
     type: contain
     requires_approval: true
+    requires: success
 
   - step_id: PB-ATO-03
     hypothesis: ATO
-    action: Force a password reset for the account
+    action: Force a password reset for {user}
     type: contain
     requires_approval: true
+    requires: success
 
   - step_id: PB-ATO-04
     hypothesis: ATO
-    action: Review the multi-factor authentication methods registered for the account
+    action: Review the MFA methods registered for {user}
     type: investigate
     requires_approval: false
+    requires: persistence
 
   # --- Unresolved cases -----------------------------------------------------
   # Offered when a gap could not be closed, so the escalation says what to do
@@ -95,9 +115,11 @@ steps:
     action: Retrieve the missing log segment from the source system
     type: investigate
     requires_approval: false
+    requires: none
 
   - step_id: PB-UNRES-02
     hypothesis: UNRESOLVED
-    action: Treat the account as possibly compromised until the gap is closed
+    action: Treat {user} as possibly compromised until the gap is closed
     type: communicate
     requires_approval: false
+    requires: none
