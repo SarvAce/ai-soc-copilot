@@ -12,10 +12,12 @@ Proof of Concept), Symbiosis Institute of Technology, Pune.
 > work package by work package against it. **WP0-WP6 are done, and Milestone 1
 > of WP7**: data and knowledge base, normaliser and tools, detection, decision
 > logic, both Critic gates with the fault-injection harness, the LangGraph
-> workflow with its audit log and Ollama mode, and four of the five Streamlit
-> pages. Scenarios S1, S2, S3, S4, S6a and S8 run end to end in the
-> application, in mock mode and in Ollama mode. Still to come: the Evaluation
-> page, the held-out set and the full metric suite, and the added value of WP8.
+> workflow with its audit log and Ollama mode, and five Streamlit pages — the
+> alert queue, the investigation trace, the case file, the analyst review and
+> the architecture view. Scenarios S1, S2, S3, S4, S6a and S8 run end to end in
+> the application, in mock mode and in Ollama mode. Still to come: the
+> Evaluation page, the held-out set and the full metric suite, and the added
+> value of WP8.
 > This README is rewritten in full, with measured results, when the build
 > finishes. See `PLAN.md` for the plan and `docs/DEVIATIONS.md` for every
 > clarification made along the way.
@@ -51,9 +53,24 @@ streamlit run soc_copilot/app.py
 
 The application opens on the alert queue. Pick a scenario in the sidebar, press
 **Investigate** on the case, then **Run this case** on the investigation trace:
-the workflow draws one line per node as it goes and pauses at the analyst
-review. The case file is laid out as Figure 5 of the proposal, and every view is
+the workflow names each node as it finishes and pauses at the analyst review.
+The case file is laid out as Figure 5 of the proposal, and every view is
 labelled as synthetic data.
+
+Five pages, in the order a demonstration uses them:
+
+| Page | What it shows |
+|---|---|
+| **Alert queue** | the normalised events, the quarantine, and the cases the Detector opened |
+| **Investigation trace** | the whole chain of node executions, as Figure 4 draws it: one expander per execution, naming what it received and what it produced — the plan's tool calls, each query with its coverage, the facts with their labels and polarity, every E1–E7 and R1–R10 result with its reason, each draft and why it was rejected, the route taken and why, and the analyst's decision with its audit entry. The steps that used the model are marked. |
+| **Case file** | the released case file of Figure 5, with both downloads |
+| **Analyst review** | the same case file with Approve, Override and Escalate |
+| **Architecture** | `fig2_architecture.png` beside the compiled LangGraph workflow for the selected case, with the nodes that ran highlighted, the three Table 25 loops marked when they were taken, and the counters: `evidence_retries`, `report_retries` and completed node executions out of 17 |
+
+The architecture drawing is read from the compiled `StateGraph` itself, so it
+cannot drift from the routing; the trace is rebuilt from the workflow's
+checkpoints, so every pass's plan and every rejected draft is still there, not
+only the last of each.
 
 The sidebar also chooses the narrative model and switches fault injection on.
 Mock is the default and needs nothing installed. Ollama mode lists whatever the

@@ -47,9 +47,9 @@ def _text_of(app: AppTest) -> str:
 
 
 @pytest.mark.parametrize("page", ["Alert queue", "Investigation trace",
-                                  "Case file", "Analyst review"])
+                                  "Case file", "Analyst review", "Architecture"])
 def test_every_milestone_page_renders(page):
-    """The four pages of Milestone 1 render without raising."""
+    """Every page of the application renders without raising."""
     app = _app(page=page)
     _no_exception(app)
     assert app.sidebar.title[0].value == "AI-SOC Copilot"
@@ -57,7 +57,8 @@ def test_every_milestone_page_renders(page):
 
 def test_every_view_says_the_data_is_synthetic():
     """CLAUDE.md rule 11: label every view that shows synthetic data."""
-    for page in ("Alert queue", "Investigation trace", "Case file", "Analyst review"):
+    for page in ("Alert queue", "Investigation trace", "Case file",
+                 "Analyst review", "Architecture"):
         app = _app(page=page)
         assert "SYNTHETIC DATA" in _text_of(app), page
 
@@ -77,7 +78,8 @@ def test_the_sidebar_offers_the_five_figure_5_controls():
     assert any(label.startswith("M13 ") for label in faults)
     assert app.sidebar.selectbox[1].value == "off"
     assert list(app.sidebar.radio[-1].options) == [
-        "Alert queue", "Investigation trace", "Case file", "Analyst review"]
+        "Alert queue", "Investigation trace", "Case file", "Analyst review",
+        "Architecture"]
 
 
 @pytest.mark.parametrize("scenario_id", DEMO)
@@ -252,3 +254,126 @@ def test_the_json_export_carries_the_facts_and_the_audit_log(design_runs):
     assert len(payload["facts"]) == len(run.facts)
     assert payload["report"]["verdict"]["priority"] == "P2"
     assert payload["passes"] == 2
+
+
+# --- the trace shows the whole chain, as Figure 4 draws it ----------------
+
+
+def _step_labels(app: AppTest) -> list[str]:
+    """The title of every step expander on the trace page, in order."""
+    return [expander.label for expander in app.get("expander")]
+
+
+@pytest.mark.parametrize("scenario_id", DEMO)
+def test_the_trace_shows_one_step_per_node_execution_in_order(scenario_id):
+    """Figure 4: the chain is numbered from one, in the order the nodes ran."""
+    app = _run_case(scenario_id)
+    labels = _step_labels(app)
+    assert labels
+    for number, label in enumerate(labels, start=1):
+        assert label.startswith(f"{number}. "), label
+    # Every run starts with the Planner and pauses after the Report Gate.
+    assert "Planner" in labels[0]
+    assert "Critic · Report Gate" in labels[-1]
+    assert any("Investigator" in label for label in labels)
+    assert any("Reporter —" in label for label in labels)
+
+
+def test_the_trace_shows_the_second_pass_of_s2_separately():
+    """S2 re-plans once, so the Planner and Investigator each appear twice."""
+    labels = _step_labels(_run_case("S2"))
+    assert sum("Planner" in label for label in labels) == 2
+    assert sum("Investigator" in label for label in labels) == 2
+    assert "re-plan" in labels[2]
+
+
+@pytest.mark.parametrize("scenario_id", ["S1", "S2", "S6a", "S8"])
+def test_the_trace_names_what_every_step_received_and_produced(scenario_id):
+    """Every node execution says what it was handed and what it wrote."""
+    app = _run_case(scenario_id)
+    text = _text_of(app)
+    assert text.count("Received") >= len(_step_labels(app))
+    assert text.count("Produced") >= len(_step_labels(app))
+    assert "Audit entry" in text and "entry_hash" in text
+
+
+@pytest.mark.parametrize("scenario_id", ["S1", "S2", "S6a", "S8"])
+def test_the_trace_shows_the_plan_the_queries_and_the_facts(scenario_id):
+    """The Planner's tool calls, each query's coverage, and the facts' polarity."""
+    app = _run_case(scenario_id)
+    text = _text_of(app)
+    assert "Queries, each with the time range it searched" in text
+    assert "polarity the §16.1 rule table gave it" in text
+    # One table for the plan, one for the queries and one for the facts, at least.
+    assert len(app.dataframe) >= 3
+
+
+@pytest.mark.parametrize("scenario_id", ["S1", "S2", "S6a", "S8"])
+def test_the_trace_shows_every_gate_check_with_its_reason(scenario_id):
+    """Table 30 and Table 31: all seventeen checks, each with pass or fail."""
+    app = _run_case(scenario_id)
+    text = _text_of(app)
+    assert "Evidence Gate checks E1–E7 (Table 30)" in text
+    assert "Report Gate checks R1–R10 (Table 31)" in text
+    assert "Route taken" in text
+
+
+def test_the_trace_explains_why_s6a_is_unresolved():
+    """S6a's route out of the Evidence Gate, with the gap that caused it."""
+    app = _run_case("S6a")
+    labels = _step_labels(app)
+    assert any("unresolved" in label for label in labels)
+    text = _text_of(app)
+    assert "COVERAGE" in text and "not remediable" in text
+
+
+@pytest.mark.parametrize("scenario_id", ["S1", "S2", "S6a", "S8"])
+def test_the_trace_marks_only_the_steps_that_used_the_model(scenario_id):
+    """§17: show which steps used the model — and which did not."""
+    app = _run_case(scenario_id)
+    labels = _step_labels(app)
+    using = [label for label in labels if "used the model" in label]
+    assert len(using) == 1 and "Reporter" in using[0]
+    text = _text_of(app)
+    assert "deterministic code" in text
+    assert "Steps that used the model:" in text
+
+
+def test_the_trace_shows_each_rejected_draft_and_why():
+    """With M4 on every draft, the page shows all three Reporter executions."""
+    app = AppTest.from_file(str(APP), default_timeout=TIMEOUT)
+    app.session_state["page"] = "Investigation trace"
+    app.run()
+    app.selectbox[0].set_value("S1").run()
+    app.sidebar.selectbox[1].set_value("M4").run()
+    app.sidebar.radio[1].set_value("every draft").run()
+    _no_exception(app)
+    next(button for button in app.button
+         if button.label.endswith("this case")).click().run()
+    _no_exception(app)
+    labels = _step_labels(app)
+    assert sum("Reporter —" in label for label in labels) == 3
+    assert any("Reporter — template" in label for label in labels)
+    assert any("redraft" in label for label in labels)
+    assert any("template" in label for label in labels)
+    # The reason each draft was rejected is on the step that rejected it.
+    assert any("R3" in str(warning.value) for warning in app.warning)
+    assert "Why this draft was rejected" in _text_of(app)
+
+
+def test_the_trace_shows_the_analyst_decision_and_its_audit_entry():
+    """§14.6: once the analyst decides, the chain carries the decision."""
+    _run_case("S2")
+    review = _app("S2", "Analyst review")
+    next(button for button in review.button
+         if button.label == "Approve").click().run()
+    _no_exception(review)
+    app = _app("S2", "Investigation trace")
+    _no_exception(app)
+    labels = _step_labels(app)
+    assert any(label.endswith("Analyst review — Approve") for label in labels)
+    assert any("Finalize — CLOSED" in label for label in labels)
+    text = _text_of(app)
+    assert "the interrupt payload" in text        # what the analyst was asked
+    assert "node analyst_review" in text          # its audit entry
+    assert "decision Approve" in text

@@ -185,10 +185,10 @@ def download_row(run: RunResult, key: str) -> None:
     left, right = st.columns(2)
     left.download_button("Download JSON", report_json(run),
                          file_name=f"{run.case.case_id}.json", mime="application/json",
-                         key=f"{key}-json", use_container_width=True)
+                         key=f"{key}-json", width="stretch")
     right.download_button("Download Markdown", report_markdown(run),
                           file_name=f"{run.case.case_id}.md", mime="text/markdown",
-                          key=f"{key}-md", use_container_width=True)
+                          key=f"{key}-md", width="stretch")
 
 
 def render_case_file(run: RunResult, loaded, *, key: str = "case") -> None:

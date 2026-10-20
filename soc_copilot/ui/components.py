@@ -77,3 +77,22 @@ def section_heading(text: str, note: str = "") -> None:
 def caption_line(parts: list[str]) -> None:
     """The dotted subtitle under a case title (Figure 5)."""
     st.caption(" · ".join(part for part in parts if part))
+
+
+# What each graph node is called in the interface (spec Table 21, §14.2).
+NODE_ROLE = {
+    "planner": "Planner",
+    "investigator": "Investigator",
+    "evidence_gate": "Critic · Evidence Gate",
+    "reporter": "Reporter",
+    "report_gate": "Critic · Report Gate",
+    "analyst_review": "Analyst review",
+    "finalize": "Finalize",
+    "__start__": "START",
+    "__end__": "END",
+}
+
+
+def role_of(node: str) -> str:
+    """The display name of one graph node."""
+    return NODE_ROLE.get(node, node)

@@ -83,9 +83,15 @@ def test_a_case_runs_in_ollama_mode_through_the_application(warm_model):
     run = next(button for button in app.button if button.label.endswith("this case"))
     run.click().run()
     assert not app.exception, app.exception
+    # The trace names the model twice: on the chip row of the step that drafted,
+    # and in that step's audit reason, which is rendered as plain text.
     text = "\n".join([*(str(item.value) for item in app.markdown),
-                      *(str(item.value) for item in app.caption)])
+                      *(str(item.value) for item in app.caption),
+                      *(str(item.value) for item in app.text)])
     assert "model=ollama" in text, "the trace must say which model was used"
+    assert "used the model · ollama" in text
+    labels = [expander.label for expander in app.get("expander")]
+    assert any("used the model (ollama" in label for label in labels), labels
 
 
 def test_the_planner_suggestion_mode_only_adds_valid_calls(warm_model, design_runs):

@@ -61,7 +61,7 @@ def render(settings) -> None:
                 chips([(case.rule, "blue"), (case.hypothesis, "grey")])
             with pick:
                 if st.button("Investigate", key=f"pick-{case.case_id}",
-                             use_container_width=True, type="primary"):
+                             width="stretch", type="primary"):
                     # The thread ID of the case under review, kept in session
                     # state so the paused graph can be resumed (§17).
                     st.session_state["case_id"] = case.case_id

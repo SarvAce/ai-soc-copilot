@@ -29,17 +29,17 @@ def decision_panel(stage, case, run, *, key: str = "review") -> None:
         approve, override, escalate = st.columns(3)
         chosen: AnalystDecision | None = None
 
-        if approve.button("Approve", type="primary", use_container_width=True,
+        if approve.button("Approve", type="primary", width="stretch",
                           key=f"{key}-approve"):
             chosen = AnalystDecision(action="Approve", reason=reason, analyst=analyst)
-        if override.button("Override", use_container_width=True, key=f"{key}-override"):
+        if override.button("Override", width="stretch", key=f"{key}-override"):
             if not reason.strip():
                 # §14.6: an override without a reason is not a decision.
                 st.error("An override needs a reason.")
             else:
                 chosen = AnalystDecision(action="Override", reason=reason,
                                          analyst=analyst)
-        if escalate.button("Escalate", use_container_width=True, key=f"{key}-escalate"):
+        if escalate.button("Escalate", width="stretch", key=f"{key}-escalate"):
             chosen = AnalystDecision(action="Escalate", reason=reason, analyst=analyst)
 
         if chosen is not None:

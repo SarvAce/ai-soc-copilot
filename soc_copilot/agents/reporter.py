@@ -134,16 +134,28 @@ def normalise_draft(draft: NarrativeDraft, facts: list[Fact]) -> NarrativeDraft:
     return resolved
 
 
-def template_draft(facts: list[Fact], verdict: Verdict) -> NarrativeDraft:
+def template_draft(
+    facts: list[Fact], verdict: Verdict, *, after_failed_drafts: bool = True
+) -> NarrativeDraft:
     """The deterministic fallback narrative: facts only, no model (Table 25)."""
     # Table 25's last row: once the template has run the Report Gate never routes
     # back, so this draft has to be correct by construction. It is built from the
     # same sentence library the mock model uses, but nothing here can fail or
     # time out, because no model is involved.
+    #
+    # The opening says which of the two ways the template was reached, because a
+    # reader of the case file has to know why it has no written narrative, and
+    # the honest answer differs: the gate rejected every draft, or nothing was
+    # ever drafted.
     ordered = order_facts(facts)
+    opening = (
+        "Facts only: the local model's drafts did not pass the Report Gate, so "
+        "this summary was written from the facts."
+        if after_failed_drafts else
+        "Facts only: no narrative model was asked for a draft, so this summary "
+        "was written from the facts.")
     return NarrativeDraft(
-        summary=("Facts only; the narrative model did not produce a valid draft. "
-                 + summary_from(ordered, verdict)),
+        summary=f"{opening} {summary_from(ordered, verdict)}",
         claims=claims_from(ordered),
     )
 
@@ -188,7 +200,10 @@ def write_report(
     alive = order_facts(surviving(facts, rejected))
     verdict = verdict_from_facts(facts, case, kb=kb, rejected=rejected, gaps=gaps)
     if use_template or model is None:
-        draft = template_draft(alive, verdict)
+        # The redraft error list is the evidence that drafts were written and
+        # rejected: the Report Gate fills it, and it is empty when no model was
+        # ever asked (DEVIATIONS D28 wording).
+        draft = template_draft(alive, verdict, after_failed_drafts=bool(errors))
         model_used = "template"
     else:
         draft = normalise_draft(model.draft(alive, verdict, errors), alive)

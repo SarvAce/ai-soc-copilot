@@ -122,3 +122,64 @@ def catch_rates(design_runs):
 def s1_run(design_runs):
     """The clean S1 run, which the Appendix E.1 demonstration uses."""
     return design_runs.runs["S1"]
+
+
+# The four scenarios the demonstration walks through, run through the real
+# graph so the checkpoint history exists for the trace and architecture pages.
+GRAPH_TARGETS = ("S1", "S2", "S6a", "S8")
+
+
+def _through_the_interrupt(stage, case):
+    """Run a case to the analyst interrupt and then through it, as the app does."""
+    from langgraph.types import Command
+
+    from soc_copilot.core.schemas import AnalystDecision
+    from soc_copilot.graph.state import initial_state
+    from soc_copilot.ui.chain import build_chain
+
+    stage.graph.invoke(initial_state(case), stage.settings(case))
+    paused = build_chain(stage.graph, stage.settings(case))
+    stage.graph.invoke(Command(resume=AnalystDecision(action="Approve")),
+                       stage.settings(case))
+    return paused, build_chain(stage.graph, stage.settings(case))
+
+
+@pytest.fixture(scope="session")
+def graph_runs(kb, config):
+    """Each demonstration scenario run through the graph, with its chain."""
+    from soc_copilot.agents.models import MockModel
+    from soc_copilot.eval.designset import load_scenario
+    from soc_copilot.eval.pipeline import stage_two
+
+    built = {}
+    for scenario_id in GRAPH_TARGETS:
+        loaded = load_scenario(scenario_id, kb, config)
+        case = loaded.cases[0]
+        stage = stage_two(case, store=loaded.store, kb=kb, baseline=loaded.baseline,
+                          config=config, model=MockModel())
+        paused, final = _through_the_interrupt(stage, case)
+        built[scenario_id] = {"stage": stage, "case": case, "paused": paused,
+                              "final": final}
+    return built
+
+
+@pytest.fixture(scope="session")
+def faulty_graph_run(kb, config):
+    """S1 with every draft corrupted, so the redraft and the template both run."""
+    from soc_copilot.agents.models import FaultyModel, MockModel
+    from soc_copilot.eval.designset import load_scenario
+    from soc_copilot.eval.mutations import Target, mutation
+    from soc_copilot.eval.pipeline import run_case, stage_two
+
+    loaded = load_scenario("S1", kb, config)
+    case = loaded.cases[0]
+    clean = run_case(case, store=loaded.store, kb=kb, baseline=loaded.baseline,
+                     config=config, model=MockModel())
+    target = Target(facts=clean.facts, scope=clean.scope, case=case,
+                    store=loaded.store, kb=kb, report=clean.report)
+    stage = stage_two(case, store=loaded.store, kb=kb, baseline=loaded.baseline,
+                      config=config,
+                      model=FaultyModel(mutation=mutation("M4").bind(target),
+                                        when="always"))
+    _, final = _through_the_interrupt(stage, case)
+    return {"stage": stage, "case": case, "final": final}
