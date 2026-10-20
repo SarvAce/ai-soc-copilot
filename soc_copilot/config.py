@@ -65,6 +65,7 @@ class ModelConfig(BaseModel):
     ollama_model: str
     ollama_timeout_seconds: int
     ollama_keep_alive: str
+    ollama_think: bool
     temperature: float
     seed: int
     max_untrusted_chars: int

@@ -48,9 +48,15 @@ data:
 model:
   mode: mock                       # mock | ollama; mock is the default
   ollama_host: http://localhost:11434
-  ollama_model: qwen3-coder:30b
+  # The default narrative model. The sidebar dropdown is filled from
+  # ollama.list(), so qwen3-coder:30b stays selectable at run time.
+  ollama_model: qwen3.5:4b
   ollama_timeout_seconds: 120
   ollama_keep_alive: 30m           # keeps the model resident between cases
+  # qwen3.5 reasons before answering unless told not to. Thinking adds latency
+  # and tokens for no benefit here: the model only phrases facts that the tools
+  # already computed, inside a fixed JSON schema.
+  ollama_think: false
   temperature: 0
   seed: 7
   max_untrusted_chars: 120         # user_agent and username capping (§16.4)
