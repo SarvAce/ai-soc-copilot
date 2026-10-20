@@ -92,11 +92,16 @@ class ToolRunner:
             raise ToolCallRejected(
                 f"window of {end - start} exceeds the {limit} maximum")
 
-    def _begin(
+    def validate_call(
         self, tool: str, params: dict[str, Any],
         start: datetime | None = None, end: datetime | None = None,
     ) -> str:
-        """Validate a call and return its signature, or raise ToolCallRejected."""
+        """Check a call without running it and return its signature (spec §13.3).
+
+        Public because the Planner's suggestion mode has to judge a model's
+        suggestion against the same three rules the tools enforce, before the
+        suggestion is allowed anywhere near the plan.
+        """
         if tool not in TOOL_IDS:
             raise ToolCallRejected(f"{tool!r} is not in the catalogue")
         self._check_entities(params)
@@ -106,6 +111,13 @@ class ToolRunner:
             # De-duplication is one of the termination guarantees (spec §14.5).
             raise ToolCallRejected(f"{tool} already ran with these parameters")
         return signature
+
+    def _begin(
+        self, tool: str, params: dict[str, Any],
+        start: datetime | None = None, end: datetime | None = None,
+    ) -> str:
+        """Validate a call and return its signature, or raise ToolCallRejected."""
+        return self.validate_call(tool, params, start, end)
 
     def _finish(
         self, signature: str, tool: str, params: dict[str, Any],

@@ -8,7 +8,9 @@ Template mode uses the sentence library directly and calls no model at all.
 
 from __future__ import annotations
 
-from soc_copilot.agents.narrative import claims_from, order_facts, summary_from
+from soc_copilot.agents.narrative import (
+    claims_from, order_facts, section_for, summary_from,
+)
 from soc_copilot.config import Config
 from soc_copilot.core.decide import surviving, topic_of, verdict_from_facts
 from soc_copilot.core.playbook import recommend, short_name
@@ -86,6 +88,35 @@ def unknowns_for(gaps: list[Gap], discoveries: list) -> list[str]:
     return list(dict.fromkeys(lines))
 
 
+def normalise_draft(draft: NarrativeDraft, facts: list[Fact]) -> NarrativeDraft:
+    """Resolve a draft's citations and file each claim by polarity (D1, §16.1).
+
+    Two things a model may not decide:
+
+    * **Which fact a citation names.** D1 makes the label what the narrative and
+      the interface show and the hash what a claim cites, so a draft citing the
+      label it was shown has named a real fact. Mapping it back is presentation,
+      not validation: a label matching no fact is left exactly as written, and
+      check R2 rejects it.
+    * **Which section a claim belongs in.** §16.1 says polarity comes from a
+      rule table and never from the model, and a claim's section is a direct
+      function of the polarity of the fact it cites. Code therefore files every
+      claim, exactly as code fills the disposition (§16.4 item 3). Check R4 still
+      verifies the result, because it is now this code it is checking.
+    """
+    by_label = {fact.label: fact.fact_id for fact in facts if fact.label}
+    known = {fact.fact_id: fact for fact in facts}
+    resolved = draft.model_copy(deep=True)
+    for claim in resolved.claims:
+        claim.fact_ids = [cited if cited in known else by_label.get(cited, cited)
+                          for cited in claim.fact_ids]
+        cited = next((known[fact_id] for fact_id in claim.fact_ids
+                      if fact_id in known), None)
+        if cited is not None:
+            claim.section = section_for(cited)
+    return resolved
+
+
 def template_draft(facts: list[Fact], verdict: Verdict) -> NarrativeDraft:
     """The deterministic fallback narrative: facts only, no model (Table 25)."""
     # Table 25's last row: once the template has run the Report Gate never routes
@@ -105,12 +136,14 @@ def build_report(
     hypotheses: list[Hypothesis], gaps: list[Gap], discoveries: list,
     timeline: list[TimelineItem], draft: NarrativeDraft,
     rejected: frozenset[str] = frozenset(), used_template: bool = False,
-    model_used: str = "mock",
+    model_used: str = "mock", mode: str | None = None,
 ) -> Report:
     """Assemble the case file: the model's wording inside code-filled fields."""
     alive = order_facts(surviving(facts, rejected))
     verdict = verdict_from_facts(facts, case, kb=kb, rejected=rejected, gaps=gaps)
-    mode = "unresolved" if verdict.disposition == "UNRESOLVED" else "validated"
+    # Table 25 names the two Reporter modes, so the Evidence Gate's route picks
+    # the mode; on its own the Reporter falls back to what the verdict implies.
+    mode = mode or ("unresolved" if verdict.disposition == "UNRESOLVED" else "validated")
     return Report(
         case_id=case.case_id,
         mode=mode,
@@ -132,6 +165,7 @@ def write_report(
     hypotheses: list[Hypothesis], gaps: list[Gap], discoveries: list,
     timeline: list[TimelineItem], model=None, errors: list[str] | None = None,
     rejected: frozenset[str] = frozenset(), use_template: bool = False,
+    mode: str | None = None,
 ) -> Report:
     """Draft the narrative and assemble the report, in model mode or template mode."""
     alive = order_facts(surviving(facts, rejected))
@@ -140,10 +174,31 @@ def write_report(
         draft = template_draft(alive, verdict)
         model_used = "template"
     else:
-        draft = model.draft(alive, verdict, errors)
+        draft = normalise_draft(model.draft(alive, verdict, errors), alive)
         model_used = getattr(model, "name", "mock")
     return build_report(
         case, facts, kb=kb, config=config, hypotheses=hypotheses, gaps=gaps,
         discoveries=discoveries, timeline=timeline, draft=draft, rejected=rejected,
-        used_template=use_template or model is None, model_used=model_used,
+        used_template=use_template or model is None, model_used=model_used, mode=mode,
+    )
+
+
+def failed_report(
+    case: Case, facts: dict[str, Fact], *, reason: str, kb: KnowledgeBase,
+    config: Config, hypotheses: list[Hypothesis], gaps: list[Gap], discoveries: list,
+    timeline: list[TimelineItem], rejected: frozenset[str] = frozenset(),
+    mode: str | None = None,
+) -> Report:
+    """The case file for a draft the model never delivered (spec §20, CLAUDE.md).
+
+    A model error, a timeout or invalid JSON counts as a failed draft, so the
+    run must continue: this report carries no narrative at all, which is what
+    check R1 rejects, and the Report Gate then redrafts and finally uses the
+    template. The application never crashes because of the model.
+    """
+    return build_report(
+        case, facts, kb=kb, config=config, hypotheses=hypotheses, gaps=gaps,
+        discoveries=discoveries, timeline=timeline,
+        draft=NarrativeDraft(summary="", claims=[]), rejected=rejected,
+        used_template=False, model_used=f"failed: {reason}"[:120], mode=mode,
     )

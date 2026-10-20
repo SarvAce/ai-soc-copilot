@@ -1,0 +1,83 @@
+{
+  "config_hash": "8943cb7bfe49",
+  "kb_hash": "68368958f1c7",
+  "measured_on": "2026-10-20",
+  "runs": [
+    {
+      "disposition": "SUSPECTED_COMPROMISE",
+      "draft_calls": 1,
+      "draft_failures": 0,
+      "drafts_rejected": 0,
+      "failed_checks": [],
+      "gate_passed": true,
+      "model": "mock",
+      "node_executions": 10,
+      "priority": "P2",
+      "reasons": [],
+      "redraft_used": false,
+      "released_by": "first draft",
+      "scenario_id": "S2",
+      "seconds_per_draft": 0.1,
+      "seconds_total": 0.1,
+      "seconds_warm_up": 0.0,
+      "summary": "The evidence points to a suspected compromise for bob. A sign-in for bob succeeded at 02:41 UTC, after 2 failed attempts.",
+      "template_used": false
+    },
+    {
+      "disposition": "SUSPECTED_COMPROMISE",
+      "draft_calls": 2,
+      "draft_failures": 0,
+      "drafts_rejected": 2,
+      "failed_checks": [
+        "R3"
+      ],
+      "gate_passed": true,
+      "model": "qwen3-coder:30b",
+      "node_executions": 14,
+      "priority": "P2",
+      "reasons": [
+        "R3: claim 1: bob@corp.example is in no cited fact",
+        "R3: claim 2: the number 25 is in no cited fact; claim 4: the number 24 is in no cited fact"
+      ],
+      "redraft_used": true,
+      "released_by": "template",
+      "scenario_id": "S2",
+      "seconds_per_draft": 25.0,
+      "seconds_total": 49.9,
+      "seconds_warm_up": 38.5,
+      "summary": "Facts only; the narrative model did not produce a valid draft. The evidence points to a suspected compromise for bob. A sign-in for bob succeeded at 02:41 UTC, after 2 failed attempts.",
+      "template_used": true
+    },
+    {
+      "disposition": "SUSPECTED_COMPROMISE",
+      "draft_calls": 2,
+      "draft_failures": 0,
+      "drafts_rejected": 2,
+      "failed_checks": [
+        "R10",
+        "R3",
+        "R7"
+      ],
+      "gate_passed": true,
+      "model": "qwen3.5:4b",
+      "node_executions": 14,
+      "priority": "P2",
+      "reasons": [
+        "R3: claim 1: the number 12 is in no cited fact; claim 1: the number 2026 is in no cited fact",
+        "R7: claim 1 says 'confirmed', which claims certainty",
+        "R10: the summary carries a link or markup",
+        "R3: summary: the number 10 is in no cited fact; summary: the number 12 is in no cited fact; summary: the number 2026 is in no cited fact",
+        "R7: the summary says 'breach', which claims certainty"
+      ],
+      "redraft_used": true,
+      "released_by": "template",
+      "scenario_id": "S2",
+      "seconds_per_draft": 10.5,
+      "seconds_total": 21.1,
+      "seconds_warm_up": 13.3,
+      "summary": "Facts only; the narrative model did not produce a valid draft. The evidence points to a suspected compromise for bob. A sign-in for bob succeeded at 02:41 UTC, after 2 failed attempts.",
+      "template_used": true
+    }
+  ],
+  "scenario_id": "S2"
+}

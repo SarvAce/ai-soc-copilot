@@ -261,12 +261,19 @@ def _m5(draft: NarrativeDraft, target: Target) -> None:
         return
 
 
-def _m10(draft: NarrativeDraft, target: Target) -> None:
-    """M10: file a benign fact under "evidence for"."""
-    for claim in draft.claims:
-        if claim.section == "against":
-            claim.section = "for"
-            return
+def _m10(payload: dict[str, Any], target: Target) -> dict[str, Any]:
+    """M10: file a benign fact under "evidence for".
+
+    A report mutation rather than a draft mutation, for the D21 reason: the
+    Reporter now files every claim from the cited fact's polarity (§16.1), so a
+    misfiled claim can only come from the code that assembles the report.
+    """
+    claims = [dict(claim) for claim in payload["claims"]]
+    for claim in claims:
+        if claim["section"] == "against":
+            claim["section"] = "for"
+            break
+    return {**payload, "claims": claims}
 
 
 def _m11(draft: NarrativeDraft, target: Target) -> None:
@@ -338,8 +345,8 @@ MUTATIONS: list[Mutation] = [
              fits=lambda t: _removable(t) is not None, apply_facts=_m8),
     Mutation("M9", "facts", {"EVIDENCE": "E7"}, "Upgrade suppressed",
              fits=lambda t: _discovered_success(t) is not None, apply_facts=_m9),
-    Mutation("M10", "draft", {"REPORT": "R4"}, "Known device listed as evidence for",
-             fits=lambda t: bool(t.claims_in("against")), apply_draft_fn=_m10),
+    Mutation("M10", "report", {"REPORT": "R4"}, "Known device listed as evidence for",
+             fits=lambda t: bool(t.claims_in("against")), apply_report_fn=_m10),
     Mutation("M11", "draft", {"REPORT": "R5"}, '"Reset ticket found" dropped',
              fits=lambda t: bool(t.claims_in("against")), apply_draft_fn=_m11),
     Mutation("M12", "report", {"REPORT": "R6"}, "P1 becomes P3",

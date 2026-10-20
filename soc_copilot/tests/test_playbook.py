@@ -121,3 +121,26 @@ def test_short_name_and_ladder_helpers():
     assert highest_hypothesis(["SPRAY", "ATO"]) == "ATO"
     assert highest_hypothesis(["SPRAY", "GUESS"]) == "SPRAY"
     assert highest_hypothesis([]) is None
+
+
+def test_likely_benign_is_the_only_disposition_with_no_containment_step(kb):
+    """DEVIATIONS D17, as amended: benign cases get no containment, unresolved ones do.
+
+    §15.5 says an unresolved case advises treating the account as possibly
+    compromised until the gap is closed, so withholding containment there would
+    contradict the advice the report gives. Every containment step still needs
+    approval, and nothing is ever executed.
+    """
+    from soc_copilot.core.playbook import recommend
+    for hypothesis in ("GUESS", "SPRAY", "ATO"):
+        for disposition in ("SUSPECTED_COMPROMISE", "ATTACK_ATTEMPT_NO_ACCESS",
+                            "UNRESOLVED", "LIKELY_BENIGN"):
+            steps = recommend(kb, [hypothesis], disposition,
+                              user="bob@corp.example", src_ip="203.0.113.50",
+                              success=True, persistence=True, spray_source=True)
+            contain = [step for step in steps if step.type == "contain"]
+            if disposition == "LIKELY_BENIGN":
+                assert not contain, f"{hypothesis}/{disposition} offered {contain}"
+            else:
+                assert contain, f"{hypothesis}/{disposition} offered no containment"
+            assert all(step.requires_approval for step in contain)

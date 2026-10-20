@@ -46,11 +46,47 @@ def scenario_digest(scenario_id: str) -> dict[str, str]:
     }
 
 
+def report_digest(scenario_id: str) -> dict[str, str]:
+    """Digest the released case file of one scenario, run in mock mode (18.2).
+
+    Run timestamps are kept out of the hashed content: the Report model carries
+    none, and the audit entries are hashed by their own content, so the same
+    input, configuration and knowledge base always give the same digest.
+    """
+    from soc_copilot.agents.models import MockModel
+    from soc_copilot.data.generator import ensure_design_set
+    from soc_copilot.eval.designset import load_scenario
+    from soc_copilot.eval.pipeline import run_case
+
+    ensure_design_set()
+    config, kb = get_config(), get_kb()
+    loaded = load_scenario(scenario_id, kb, config)
+    truth = ensure_design_set().get(scenario_id, {})
+    if not loaded.cases:
+        return {"report": "no case", "audit": "no case"}
+    run = run_case(loaded.cases[0], store=loaded.store, kb=kb,
+                   baseline=loaded.baseline, config=config, model=MockModel(),
+                   evidence_retries_cap=truth.get("evidence_retries_cap"))
+    return {
+        "report": stable_digest(run.report.model_dump()),
+        "facts": stable_digest({fact_id: fact.model_dump()
+                                for fact_id, fact in sorted(run.facts.items())}),
+        "verdict": stable_digest(run.report.verdict.model_dump()),
+        # The chain of entry hashes covers the whole decision path, so this one
+        # value changes if any node took a different route.
+        "audit": stable_digest([entry.entry_hash for entry in run.audit]),
+        "nodes": stable_digest(run.nodes_run),
+    }
+
+
 def main() -> None:
     """Print one scenario's digests as JSON, for the cross-process determinism test."""
     import sys
     scenario_id = sys.argv[1] if len(sys.argv) > 1 else "S2"
-    print(json.dumps(scenario_digest(scenario_id), sort_keys=True))
+    stages = sys.argv[2] if len(sys.argv) > 2 else "stage1"
+    payload = (scenario_digest(scenario_id) if stages == "stage1"
+               else report_digest(scenario_id))
+    print(json.dumps(payload, sort_keys=True))
 
 
 if __name__ == "__main__":

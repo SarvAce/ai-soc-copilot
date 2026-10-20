@@ -14,6 +14,7 @@ from soc_copilot.agents.factbuild import BUILD_ORDER, BuildContext, facts_from
 from soc_copilot.agents.planner import query_id_of
 from soc_copilot.config import Config
 from soc_copilot.core.baseline import Baseline
+from soc_copilot.core.normaliser import safe_user_label
 from soc_copilot.core.schemas import (
     Case, Discovery, Fact, QueryRecord, TimelineItem, ToolCall,
 )
@@ -77,6 +78,14 @@ def _at(raw: str | datetime) -> datetime:
     return raw if isinstance(raw, datetime) else datetime.fromisoformat(raw)
 
 
+def _who(event, store: EventStore) -> str:
+    """The account of an event, as the case file is allowed to print it (16.4)."""
+    # An attacker chooses the username in a spray, so a name that matches no
+    # inventory account is never printed: scenario S8 hides an instruction in
+    # one. The event ID beside the line still leads to the raw record.
+    return safe_user_label(event.user, store.kb.is_known_user(event.user))
+
+
 def _timeline_for(fact: Fact, store: EventStore) -> list[TimelineItem]:
     """One timeline line per event worth showing, cited by event ID (Table 33)."""
     topic = fact.params.get("topic", "")
@@ -87,20 +96,23 @@ def _timeline_for(fact: Fact, store: EventStore) -> list[TimelineItem]:
             if event is not None:
                 items.append(TimelineItem(
                     ts=event.ts, event_id=event_id,
-                    text=f"Failed sign-in for {event.user} from {event.src_ip}"))
+                    text=f"Failed sign-in for {_who(event, store)} "
+                         f"from {event.src_ip}"))
     if topic == "success_after_failures" and fact.event_ids:
         event = store.get(fact.event_ids[-1])
         if event is not None:
             items.append(TimelineItem(
                 ts=event.ts, event_id=event.event_id,
-                text=f"Successful sign-in for {event.user} from {event.src_ip}"))
+                text=f"Successful sign-in for {_who(event, store)} "
+                     f"from {event.src_ip}"))
     if topic in ("mfa_device_registered", "persistence", "recent_password_change"):
         for event_id in fact.event_ids:
             event = store.get(event_id)
             if event is not None:
                 items.append(TimelineItem(
                     ts=event.ts, event_id=event_id,
-                    text=f"{event.event_type} for {event.user} from {event.src_ip}"))
+                    text=f"{event.event_type} for {_who(event, store)} "
+                         f"from {event.src_ip}"))
     return items
 
 
@@ -146,6 +158,11 @@ def investigate(
         if output.query is not None:
             result.queries.append(output.query)
         for fact in facts_from(call, output, ctx):
+            # F01, F02 ... in order of first appearance (DEVIATIONS D1). A fact
+            # the next pass computes again keeps the label it already has,
+            # because the fact_id is the same.
+            existing = known.get(fact.fact_id)
+            fact.label = existing.label if existing else f"F{len(known) + 1:02d}"
             known[fact.fact_id] = fact
             result.facts[fact.fact_id] = fact
             running_timeline = _merge_timeline(running_timeline,

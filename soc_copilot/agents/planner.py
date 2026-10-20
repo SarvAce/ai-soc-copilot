@@ -63,6 +63,32 @@ def initial_scope(case: Case, kb: KnowledgeBase) -> Scope:
                  sources=list(case.src_ips))
 
 
+def scope_from(
+    case: Case, hypotheses: list[Hypothesis], discoveries: list, kb: KnowledgeBase
+) -> Scope:
+    """Derive the scope from the state spec B.1 declares, so no channel is added.
+
+    The accounts of the Detector's own hypothesis are the case's inventory
+    users; an upgraded hypothesis covers the accounts whose success the
+    investigation discovered; and the sources are the case's addresses plus any
+    the investigation turned up (§14.4, the unchecked pivot of S11).
+    """
+    accounts: dict[str, list[str]] = {
+        case.hypothesis: [user for user in case.users if kb.is_known_user(user)]
+    }
+    if "ATO" in hypotheses and case.hypothesis != "ATO":
+        accounts["ATO"] = [discovery.user for discovery in discoveries
+                           if discovery.kind == "SUCCESS" and discovery.user]
+    sources = list(case.src_ips)
+    for discovery in discoveries:
+        if (discovery.kind == "NEW_IP" and discovery.src_ip
+                and discovery.src_ip not in sources):
+            sources.append(discovery.src_ip)
+    return Scope(hypotheses=list(hypotheses),
+                 accounts={name: accounts.get(name, []) for name in hypotheses},
+                 sources=sources)
+
+
 def requirements_for(kb: KnowledgeBase, scope: Scope) -> list[Requirement]:
     """Expand the evidence checklist of every active hypothesis over its targets."""
     catalogue = kb.evidence_requirements.get("hypotheses", {})

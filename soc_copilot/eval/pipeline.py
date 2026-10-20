@@ -1,35 +1,34 @@
-"""A plain-Python run of one case, following the Table 25 routes (spec §14.3).
+"""Running one case through the graph and projecting the result (spec §14.3).
 
-WP5 needs clean reports for every design scenario before the LangGraph wiring
-exists, and the evaluation needs a driver with no checkpointer in the way. This
-module calls exactly the node functions WP6 will put behind the graph nodes —
-planner, investigator, evidence gate, reporter, report gate — and takes the
-same routes, so the graph adds orchestration and nothing else.
+The LangGraph graph in ``graph/build.py`` is the only implementation of the
+Table 25 routes. This module starts a thread for one case, collects what each
+node produced, and projects the final state into a flat result that the tests
+and the evaluation can read without knowing about checkpointers.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
-from soc_copilot.agents.critic_evidence import run_evidence_gate
-from soc_copilot.agents.critic_report import run_report_gate
-from soc_copilot.agents.investigator import investigate
-from soc_copilot.agents.planner import Scope, initial_scope, plan
-from soc_copilot.agents.reporter import write_report
+from soc_copilot.agents.planner import Scope, scope_from
 from soc_copilot.config import Config
+from soc_copilot.core.audit import CaseRecordStore
 from soc_copilot.core.baseline import Baseline
 from soc_copilot.core.schemas import (
-    Case, CaseStatus, Discovery, Fact, Gap, QueryRecord, Report, TimelineItem,
-    ValidationReport,
+    AnalystDecision, AuditEntry, Case, CaseStatus, Discovery, Fact, Gap, QueryRecord,
+    Report, TimelineItem, ValidationReport,
 )
 from soc_copilot.core.store import EventStore
-from soc_copilot.core.tools import ToolRunner
+from soc_copilot.graph.build import build_graph, run_config
+from soc_copilot.graph.nodes import RunContext
+from soc_copilot.graph.state import initial_state
 from soc_copilot.kb.loader import KnowledgeBase
 
 
 @dataclass
 class RunResult:
-    """Everything one case run produced, in the shape of the B.1 state channels."""
+    """One case run, flattened out of the B.1 state channels."""
 
     case: Case
     scope: Scope
@@ -47,6 +46,11 @@ class RunResult:
     passes: int = 0
     drafts: list[ValidationReport] = field(default_factory=list)
     status: CaseStatus = "INVESTIGATING"
+    audit: list[AuditEntry] = field(default_factory=list)
+    nodes_run: list[str] = field(default_factory=list)
+    decision: AnalystDecision | None = None
+    interrupt: Any = None
+    records: CaseRecordStore | None = None      # what finalize wrote, if it ran
 
     @property
     def rejected(self) -> frozenset[str]:
@@ -54,130 +58,120 @@ class RunResult:
         return frozenset(self.evidence_check.rejected_fact_ids
                          if self.evidence_check else ())
 
-    def label_facts(self) -> None:
-        """Assign F01, F02 ... in order of first appearance (DEVIATIONS D1)."""
-        for position, fact_id in enumerate(sorted(self.facts), start=1):
-            self.facts[fact_id].label = f"F{position:02d}"
+    @property
+    def node_executions(self) -> int:
+        """Completed node executions, which §14.5 bounds at 17."""
+        # One audit entry per completed node. analyst_review appends none until
+        # it resumes, so its re-entry on resume is not counted twice.
+        return len(self.audit)
 
 
-def _apply_gaps(scope: Scope, report: ValidationReport, result: RunResult) -> None:
-    """Turn the Critic's typed gaps into the next pass's scope (spec §14.4)."""
-    for gap in report.gaps:
-        if gap.gap_type == "HYPOTHESIS_UPGRADE" and gap.user:
-            scope.add_upgrade("ATO", gap.user)
+@dataclass
+class Stage2:
+    """The compiled graph and the resources one case needs (spec §14.1)."""
+
+    ctx: RunContext
+    graph: Any
+    config: Config
+
+    def settings(self, case: Case) -> dict[str, Any]:
+        """The §14.7 run configuration for one case's thread."""
+        return run_config(case.case_id, self.config)
 
 
-def _widen_sources(scope: Scope, discoveries: list[Discovery], case: Case) -> None:
-    """Bring an address the investigation found into scope, so its checks are required."""
-    for discovery in discoveries:
-        if discovery.kind == "NEW_IP" and discovery.src_ip not in case.src_ips:
-            scope.add_source(discovery.src_ip)
+def stage_two(
+    case: Case, *, store: EventStore, kb: KnowledgeBase, baseline: Baseline,
+    config: Config, model: Any = None, planner_model: Any = None,
+    evidence_retries_cap: int | None = None, report_retries_cap: int | None = None,
+    records: CaseRecordStore | None = None, checkpointer: Any = None,
+) -> Stage2:
+    """Build the graph for one case, with its own tool runner (spec §13.3)."""
+    ctx = RunContext(
+        store=store, kb=kb, baseline=baseline, config=config, model=model,
+        planner_model=planner_model, evidence_retries_cap=evidence_retries_cap,
+        report_retries_cap=report_retries_cap,
+        records=records or CaseRecordStore()).for_case(case)
+    return Stage2(ctx=ctx, graph=build_graph(ctx, checkpointer), config=config)
 
 
-def _mark_unchecked(result: RunResult) -> None:
-    """Flag a pivot nothing ever checked, which is what S11 reports as unknown."""
-    open_gaps = [gap.detail for gap in result.gaps if gap.gap_type == "MISSING_CHECK"]
-    for discovery in result.discoveries:
-        if not discovery.src_ip or discovery.src_ip in result.case.src_ips:
-            discovery.checked = True             # it was in scope from the start
-            continue
-        discovery.checked = not any(discovery.src_ip in detail
-                                    for detail in open_gaps)
+def project(state: dict[str, Any], stage: Stage2, *, nodes_run: list[str],
+            drafts: list[ValidationReport], interrupt: Any = None) -> RunResult:
+    """Flatten a final graph state into a RunResult."""
+    case = state["case"]
+    evidence = state.get("evidence_check")
+    return RunResult(
+        case=case,
+        scope=scope_from(case, state["hypotheses"], state["discoveries"], stage.ctx.kb),
+        facts=dict(state["facts"]),
+        queries=list(state["queries"]),
+        timeline=list(state["timeline"]),
+        discoveries=list(state["discoveries"]),
+        gaps=list(evidence.gaps) if evidence else [],
+        evidence_check=evidence,
+        report=state.get("report"),
+        report_check=state.get("report_check"),
+        evidence_retries=state["evidence_retries"],
+        report_retries=state["report_retries"],
+        used_template=state["used_template"],
+        passes=sum(1 for entry in state["audit"] if entry.node == "planner"),
+        drafts=drafts,
+        status=state["status"],
+        audit=list(state["audit"]),
+        nodes_run=nodes_run,
+        decision=state.get("decision"),
+        interrupt=interrupt,
+    )
+
+
+def _drive(stage: Stage2, case: Case, start: Any) -> tuple[list[str], list[ValidationReport], Any]:
+    """Stream the graph and record which nodes completed and what they produced."""
+    nodes_run: list[str] = []
+    drafts: list[ValidationReport] = []
+    interrupt: Any = None
+    for chunk in stage.graph.stream(start, stage.settings(case), stream_mode="updates"):
+        for node, update in chunk.items():
+            if node.startswith("__"):
+                # The interrupt arrives as a channel of its own, not as a node.
+                interrupt = update[0].value if isinstance(update, (list, tuple)) else update
+                continue
+            nodes_run.append(node)
+            if node == "report_gate" and update.get("report_check") is not None:
+                drafts.append(update["report_check"])
+    return nodes_run, drafts, interrupt
 
 
 def run_case(
     case: Case, *, store: EventStore, kb: KnowledgeBase, baseline: Baseline,
-    config: Config, model=None, evidence_retries_cap: int | None = None,
-    report_retries_cap: int | None = None,
+    config: Config, model: Any = None, planner_model: Any = None,
+    evidence_retries_cap: int | None = None, report_retries_cap: int | None = None,
+    decision: AnalystDecision | None = None, records: CaseRecordStore | None = None,
 ) -> RunResult:
-    """Run one case through both gates and return its report (Table 25)."""
-    scope = initial_scope(case, kb)
-    result = RunResult(case=case, scope=scope)
-    runner = ToolRunner(store, kb, baseline, case, config)
-    cap = config.limits.evidence_retries if evidence_retries_cap is None \
-        else evidence_retries_cap
+    """Run one case to the analyst interrupt, and through it when a decision is given."""
+    stage = stage_two(case, store=store, kb=kb, baseline=baseline, config=config,
+                      model=model, planner_model=planner_model,
+                      evidence_retries_cap=evidence_retries_cap,
+                      report_retries_cap=report_retries_cap, records=records)
+    nodes_run, drafts, interrupt = _drive(stage, case, initial_state(case))
 
-    while True:
-        result.passes += 1
-        calls = plan(kb, config, case, store, scope, result.facts)
-        outcome = investigate(calls, runner, case=case, config=config, kb=kb,
-                              baseline=baseline, store=store, facts=result.facts,
-                              timeline=result.timeline, pass_number=result.passes)
-        result.facts.update(outcome.facts)
-        result.queries += outcome.queries
-        result.timeline = outcome.timeline
-        for discovery in outcome.discoveries:
-            if not any(existing.kind == discovery.kind
-                       and existing.user == discovery.user
-                       and existing.src_ip == discovery.src_ip
-                       for existing in result.discoveries):
-                result.discoveries.append(discovery)
-        _widen_sources(scope, result.discoveries, case)
-        result.label_facts()
+    if decision is not None:
+        from langgraph.types import Command
+        more_nodes, more_drafts, interrupt = _drive(stage, case,
+                                                    Command(resume=decision))
+        nodes_run += more_nodes
+        drafts += more_drafts
 
-        evidence = run_evidence_gate(result.facts, case=case, store=store, kb=kb,
-                                     config=config, scope=scope,
-                                     discoveries=result.discoveries)
-        result.evidence_check = evidence
-        result.gaps = list(evidence.gaps)
-        if evidence.passed:
-            break
-        remediable = any(gap.remediable() for gap in evidence.gaps)
-        if remediable and result.evidence_retries < cap and outcome.progressed():
-            # The only edge back to the Planner: a fixable gap, a retry left and
-            # a pass that made progress (Table 25, row 5).
-            result.evidence_retries += 1
-            _apply_gaps(scope, evidence, result)
-            continue
-        break
-
-    _mark_unchecked(result)
-    _draft_and_validate(result, store=store, kb=kb, config=config, model=model,
-                        report_retries_cap=report_retries_cap)
+    state = stage.graph.get_state(stage.settings(case)).values
+    result = project(state, stage, nodes_run=nodes_run, drafts=drafts,
+                     interrupt=interrupt)
+    result.records = stage.ctx.records
     return result
 
 
-def _draft_and_validate(
-    result: RunResult, *, store: EventStore, kb: KnowledgeBase, config: Config,
-    model=None, report_retries_cap: int | None = None,
-) -> None:
-    """Draft, validate, redraft once, then fall back to the template (Table 25)."""
-    cap = config.limits.report_retries if report_retries_cap is None \
-        else report_retries_cap
-    errors: list[str] | None = None
-    use_template = model is None
-
-    while True:
-        report = write_report(
-            result.case, result.facts, kb=kb, config=config,
-            hypotheses=result.scope.hypotheses, gaps=result.gaps,
-            discoveries=result.discoveries, timeline=result.timeline,
-            model=None if use_template else model, errors=errors,
-            rejected=result.rejected, use_template=use_template)
-        check = run_report_gate(
-            report, case=result.case, facts=result.facts, store=store, kb=kb,
-            config=config, hypotheses=result.scope.hypotheses, gaps=result.gaps,
-            rejected=result.rejected)
-        result.report, result.report_check = report, check
-        result.drafts.append(check)
-        result.used_template = report.used_template
-        if check.passed or use_template:
-            # Table 25's last row: after the template the gate never routes back.
-            break
-        if result.report_retries < cap:
-            result.report_retries += 1
-            errors = [f"{item}: {next(c.reason for c in check.checks if c.check_id == item)}"
-                      for item in check.failed_ids()]
-            continue
-        use_template = True
-
-    result.status = "UNRESOLVED" if result.report.mode == "unresolved" else "PENDING_REVIEW"
-
-
 def run_scenario_case(
-    case: Case, loaded, *, model=None, evidence_retries_cap: int | None = None,
+    case: Case, loaded, *, model: Any = None, evidence_retries_cap: int | None = None,
+    decision: AnalystDecision | None = None,
 ) -> RunResult:
     """Convenience wrapper for the tests: run a case off a loaded scenario."""
     return run_case(case, store=loaded.store, kb=loaded.kb, baseline=loaded.baseline,
                     config=loaded.config, model=model,
-                    evidence_retries_cap=evidence_retries_cap)
+                    evidence_retries_cap=evidence_retries_cap, decision=decision)

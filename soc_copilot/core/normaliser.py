@@ -71,6 +71,19 @@ def clean_untrusted(text: str, limit: int = MAX_USER_AGENT) -> str:
     return cleaned[:limit]
 
 
+def safe_user_label(user: str, known: bool) -> str:
+    """How a username may be shown: the short name, or a placeholder (spec 16.4).
+
+    A sprayed username that matches no account is attacker-controlled text, so
+    it never reaches the case file as prose. Scenario S8 puts an instruction in
+    one, and the only honest thing to print is that the account is unknown; the
+    raw line stays reachable behind its event ID (Table 33).
+    """
+    if not user:
+        return "an unknown account"
+    return user.split("@")[0] if known else "an account not in the inventory"
+
+
 def _raw_hash(raw: str) -> str:
     """Hash of the original line, used to drop exact duplicates (rule 5)."""
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()

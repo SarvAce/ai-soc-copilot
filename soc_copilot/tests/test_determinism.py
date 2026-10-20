@@ -20,12 +20,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 HASH_SEEDS = ("0", "1", "12345")
 
 
-def run_digest(scenario_id: str, hash_seed: str) -> dict[str, str]:
+def run_digest(scenario_id: str, hash_seed: str, stages: str = "stage1") -> dict[str, str]:
     """Compute a scenario's digests in a fresh process with a given PYTHONHASHSEED."""
     env = dict(os.environ)
     env["PYTHONHASHSEED"] = hash_seed
     proc = subprocess.run(
-        [sys.executable, "-m", "soc_copilot.eval.digest", scenario_id],
+        [sys.executable, "-m", "soc_copilot.eval.digest", scenario_id, stages],
         cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=600,
     )
     assert proc.returncode == 0, proc.stderr
@@ -36,6 +36,22 @@ def run_digest(scenario_id: str, hash_seed: str) -> dict[str, str]:
 def test_three_processes_with_different_hash_seeds_agree(scenario_id):
     """The acceptance test: three separate processes must produce identical digests."""
     digests = [run_digest(scenario_id, seed) for seed in HASH_SEEDS]
+    first = digests[0]
+    for seed, digest in zip(HASH_SEEDS[1:], digests[1:]):
+        assert digest == first, (
+            f"{scenario_id} differs under PYTHONHASHSEED={seed}: "
+            f"{[stage for stage in first if first[stage] != digest[stage]]}")
+
+
+@pytest.mark.parametrize("scenario_id", ["S2", "S1", "S6a", "S11"])
+def test_the_released_report_is_identical_across_processes(scenario_id):
+    """The whole run, not only stage 1: same report hash in three processes.
+
+    This is the §18.2 determinism metric as the evaluation will report it. It
+    covers the facts, the verdict, the narrative, the audit chain and the route
+    the graph took, each in a separate process with a different hash seed.
+    """
+    digests = [run_digest(scenario_id, seed, "report") for seed in HASH_SEEDS]
     first = digests[0]
     for seed, digest in zip(HASH_SEEDS[1:], digests[1:]):
         assert digest == first, (
