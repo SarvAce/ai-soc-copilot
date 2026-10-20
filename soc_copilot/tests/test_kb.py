@@ -77,6 +77,16 @@ def test_country_lookup(kb):
     assert lookup_country(kb, "2001:db8::1") == "DE"
 
 
+def test_the_s2_and_s11_sources_are_not_a_new_country(kb):
+    """The deck states S2 fires Table 28 row 4: no TI match, persistence, new country
+    or benign explanation. A source in a country bob has never used would add a
+    malicious indicator and fire row 2 instead (DEVIATIONS D19)."""
+    for ip in ("203.0.113.50", "203.0.113.55", "203.0.113.56"):
+        assert lookup_country(kb, ip) == "NL", ip
+    # S1 stays a new country, which reinforces its row 2.
+    assert lookup_country(kb, "203.0.113.7") == "SG"
+
+
 def test_playbook_steps_are_well_formed(kb):
     """Every step needs an ID, a type and an approval flag (check R8)."""
     steps = kb.playbooks["steps"]
