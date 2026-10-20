@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from soc_copilot.agents.planner import Scope, scope_from
+from soc_copilot.agents.reporter import unchecked_pivots
 from soc_copilot.config import Config
 from soc_copilot.core.audit import CaseRecordStore
 from soc_copilot.core.baseline import Baseline
@@ -99,14 +100,22 @@ def project(state: dict[str, Any], stage: Stage2, *, nodes_run: list[str],
     """Flatten a final graph state into a RunResult."""
     case = state["case"]
     evidence = state.get("evidence_check")
+    gaps = list(evidence.gaps) if evidence else []
+    # B.2: checked is false at the end for an unchecked pivot. It is derived
+    # here rather than written into the state, because the discoveries channel
+    # belongs to the Investigator (Table 23) and this is only a view of it.
+    pivots = set(unchecked_pivots(gaps, state["discoveries"], case))
+    discoveries = [discovery.model_copy(
+        update={"checked": discovery.src_ip not in pivots})
+        for discovery in state["discoveries"]]
     return RunResult(
         case=case,
         scope=scope_from(case, state["hypotheses"], state["discoveries"], stage.ctx.kb),
         facts=dict(state["facts"]),
         queries=list(state["queries"]),
         timeline=list(state["timeline"]),
-        discoveries=list(state["discoveries"]),
-        gaps=list(evidence.gaps) if evidence else [],
+        discoveries=discoveries,
+        gaps=gaps,
         evidence_check=evidence,
         report=state.get("report"),
         report_check=state.get("report_check"),
@@ -123,8 +132,14 @@ def project(state: dict[str, Any], stage: Stage2, *, nodes_run: list[str],
     )
 
 
-def _drive(stage: Stage2, case: Case, start: Any) -> tuple[list[str], list[ValidationReport], Any]:
-    """Stream the graph and record which nodes completed and what they produced."""
+def drive(
+    stage: Stage2, case: Case, start: Any, on_update: Any = None
+) -> tuple[list[str], list[ValidationReport], Any]:
+    """Stream the graph, recording which nodes completed and what they produced.
+
+    ``on_update`` is called with the node name and its update as each one
+    finishes, which is what lets the Investigation trace fill in live (§17).
+    """
     nodes_run: list[str] = []
     drafts: list[ValidationReport] = []
     interrupt: Any = None
@@ -137,6 +152,8 @@ def _drive(stage: Stage2, case: Case, start: Any) -> tuple[list[str], list[Valid
             nodes_run.append(node)
             if node == "report_gate" and update.get("report_check") is not None:
                 drafts.append(update["report_check"])
+            if on_update is not None:
+                on_update(node, update)
     return nodes_run, drafts, interrupt
 
 
@@ -151,12 +168,12 @@ def run_case(
                       model=model, planner_model=planner_model,
                       evidence_retries_cap=evidence_retries_cap,
                       report_retries_cap=report_retries_cap, records=records)
-    nodes_run, drafts, interrupt = _drive(stage, case, initial_state(case))
+    nodes_run, drafts, interrupt = drive(stage, case, initial_state(case))
 
     if decision is not None:
         from langgraph.types import Command
-        more_nodes, more_drafts, interrupt = _drive(stage, case,
-                                                    Command(resume=decision))
+        more_nodes, more_drafts, interrupt = drive(stage, case,
+                                                   Command(resume=decision))
         nodes_run += more_nodes
         drafts += more_drafts
 

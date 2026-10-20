@@ -76,15 +76,32 @@ def recommendations_for(
     )
 
 
-def unknowns_for(gaps: list[Gap], discoveries: list) -> list[str]:
+def unchecked_pivots(gaps: list[Gap], discoveries: list, case: Case) -> list[str]:
+    """Addresses the investigation found late and never got to check (§14.4).
+
+    Two conditions, both necessary: the address was not in the case to begin
+    with, and a required check on it is still unanswered. The case's own source
+    is neither, so scenario S2 must never report its attacker's address as
+    unchecked.
+    """
+    open_items = [gap.detail for gap in gaps if gap.gap_type == "MISSING_CHECK"]
+    pivots = []
+    for discovery in discoveries:
+        address = discovery.src_ip
+        if discovery.kind != "NEW_IP" or not address or address in case.src_ips:
+            continue
+        if any(address in detail for detail in open_items):
+            pivots.append(address)
+    return list(dict.fromkeys(pivots))
+
+
+def unknowns_for(gaps: list[Gap], discoveries: list, case: Case) -> list[str]:
     """What the report must admit it does not know (check R5)."""
     lines = [gap.detail for gap in gaps]
-    for discovery in discoveries:
-        if not discovery.checked and discovery.kind == "NEW_IP" and discovery.src_ip:
-            line = (f"the address {discovery.src_ip} was found late and was never "
-                    "checked")
-            if line not in lines:
-                lines.append(line)
+    for address in unchecked_pivots(gaps, discoveries, case):
+        line = f"the address {address} was found late and was never checked"
+        if line not in lines:
+            lines.append(line)
     return list(dict.fromkeys(lines))
 
 
@@ -152,7 +169,7 @@ def build_report(
         triage_answers=triage_answers(alive),
         claims=list(draft.claims),
         timeline=list(timeline),
-        unknowns=unknowns_for(gaps, discoveries),
+        unknowns=unknowns_for(gaps, discoveries, case),
         recommendations=recommendations_for(kb, case, verdict, hypotheses, alive),
         attack_ids=attack_ids_for(kb, hypotheses, alive),
         used_template=used_template,

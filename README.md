@@ -9,12 +9,16 @@ Proof of Concept), Symbiosis Institute of Technology, Pune.
 
 > **Build in progress.** The design is complete and submitted as
 > `docs/POC_SPEC.md` (proposal v1.0.2); the implementation is being built
-> work package by work package against it. **WP0-WP5 are done**: data and
-> knowledge base, normaliser and tools, detection, decision logic, and both
-> Critic gates with the fault-injection harness. The LangGraph workflow (WP6)
-> and the Streamlit pages (WP7) are next. This README is rewritten in full,
-> with measured results, when the build finishes. See `PLAN.md` for the plan
-> and `docs/DEVIATIONS.md` for every clarification made along the way.
+> work package by work package against it. **WP0-WP6 are done, and Milestone 1
+> of WP7**: data and knowledge base, normaliser and tools, detection, decision
+> logic, both Critic gates with the fault-injection harness, the LangGraph
+> workflow with its audit log and Ollama mode, and four of the five Streamlit
+> pages. Scenarios S1, S2, S3, S4, S6a and S8 run end to end in the
+> application, in mock mode and in Ollama mode. Still to come: the Evaluation
+> page, the held-out set and the full metric suite, and the added value of WP8.
+> This README is rewritten in full, with measured results, when the build
+> finishes. See `PLAN.md` for the plan and `docs/DEVIATIONS.md` for every
+> clarification made along the way.
 
 ## What it does
 
@@ -45,12 +49,31 @@ pip install -r requirements.txt
 streamlit run soc_copilot/app.py
 ```
 
+The application opens on the alert queue. Pick a scenario in the sidebar, press
+**Investigate** on the case, then **Run this case** on the investigation trace:
+the workflow draws one line per node as it goes and pauses at the analyst
+review. The case file is laid out as Figure 5 of the proposal, and every view is
+labelled as synthetic data.
+
+The sidebar also chooses the narrative model and switches fault injection on.
+Mock is the default and needs nothing installed. Ollama mode lists whatever the
+local Ollama app has; if it is not running, the sidebar says so and falls back
+to mock.
+
 Tests and evaluation:
 
 ```powershell
 pytest -q
-python -m soc_copilot.eval.run_faults    # Table 32 catch rates, saved to resultspython -m soc_copilot.eval.run_suite     # the full metric suite (WP7)
+python -m soc_copilot.eval.run_faults                  # Table 32 catch rates
+python -m soc_copilot.eval.model_compare S2            # mock vs each local model
+python -m soc_copilot.eval.run_suite                   # full metric suite (WP7)
+pytest soc_copilot/tests/test_ollama_live.py -v        # needs Ollama running
 ```
+
+The suite runs offline and needs no model: the only tests that use Ollama are in
+`test_ollama_live.py`, and they skip when it is not running. Every measurement
+command writes a file to `results/` with the date and the configuration and
+knowledge-base hashes, so no number here is ever quoted from memory.
 
 ### Validation, as measured today
 
@@ -77,7 +100,16 @@ soc_copilot/
   kb/        data/           core/      knowledge base, generator, event store and tools
   agents/    graph/          eval/      the five agents, the LangGraph workflow, the metrics
 docs/                                   the submitted proposal, pitch deck and figures
+results/                                measured results, with their config hashes
 ```
+
+## How a case is decided
+
+Tools compute facts; rule tables decide; the model only writes. Nothing a model
+produces can set a disposition, a priority, a recommendation or a technique ID,
+because the narrative schema has no such field. A run is bounded at 17 completed
+node executions and every node appends a hash-chained audit entry, so the whole
+decision path can be replayed from the case file.
 
 ## Limitations
 

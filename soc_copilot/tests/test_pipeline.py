@@ -127,3 +127,34 @@ def test_a_not_found_fact_cites_no_event_and_the_others_do(design_runs):
                 continue
             assert fact.event_ids or fact.value in (0, False), (
                 f"{scenario_id}: {fact.label} ({fact.kind}) cites nothing")
+
+
+def test_only_a_late_discovery_is_reported_as_an_unchecked_pivot(design_runs):
+    """§14.4: the case's own source was always in scope, so it was never a pivot.
+
+    S2's case file said its attacker's address "was found late and was never
+    checked" before this test existed, which is both false and exactly the kind
+    of claim the whole design exists to prevent.
+    """
+    for scenario_id, run in design_runs.runs.items():
+        for line in run.report.unknowns:
+            if "was found late" not in line:
+                continue
+            address = line.split()[2]
+            assert address not in run.case.src_ips, f"{scenario_id}: {line}"
+            assert any(address in gap.detail for gap in run.gaps
+                       if gap.gap_type == "MISSING_CHECK"), f"{scenario_id}: {line}"
+    # Only S11 has one at all, and it is the second address bob's MFA came from.
+    with_pivots = {scenario_id for scenario_id, run in design_runs.runs.items()
+                   if any("was found late" in line for line in run.report.unknowns)}
+    assert with_pivots == {"S11"}
+
+
+def test_a_discovery_that_was_checked_is_marked_checked(design_runs):
+    """B.2: checked is false at the end only for an entity nothing checked."""
+    s2 = design_runs.runs["S2"]
+    assert all(discovery.checked for discovery in s2.discoveries), [
+        (d.kind, d.src_ip, d.checked) for d in s2.discoveries]
+    s11 = design_runs.runs["S11"]
+    unchecked = [d for d in s11.discoveries if not d.checked]
+    assert {d.src_ip for d in unchecked} == {"203.0.113.56"}
