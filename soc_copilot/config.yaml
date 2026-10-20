@@ -1,0 +1,61 @@
+# Configuration defaults (spec Appendix B.5, Table 38).
+# Every threshold, window, cap and seed lives here; no magic numbers in code.
+
+# --- Detection rules (spec Table 27) ---------------------------------------
+detection:
+  # R-GUESS: at least 5 failures for one account from one IP within 10 minutes.
+  guess_min_failures: 5
+  guess_window_minutes: 10
+  # R-SPRAY: one IP fails against at least 6 accounts within 30 minutes,
+  # with a median of at most 3 attempts per account.
+  spray_min_accounts: 6
+  spray_window_minutes: 30
+  spray_max_median_attempts: 3
+  # R-SAF: a success on an account with at least 5 failures on it,
+  # from any IP, in the previous 30 minutes.
+  saf_min_failures: 5
+  saf_lookback_minutes: 30
+  # Alerts sharing an account, or a non-shared-egress IP, within this window
+  # merge into one case. Shared egress addresses never merge cases.
+  case_merge_window_minutes: 60
+
+# --- Decision windows (spec §15.2) -----------------------------------------
+windows:
+  success_horizon_minutes: 30      # after the last failure; T2 and E5
+  ticket_before_hours: 24          # before the first failure; T6
+  password_change_before_hours: 48 # before the first failure; T7
+  persistence_after_minutes: 60    # after the success; T7
+  max_tool_window_hours: 48        # tool-call validation
+
+# --- Termination (spec §14.5) ----------------------------------------------
+limits:
+  evidence_retries: 2   # at most three investigation passes
+  report_retries: 1     # then the template
+  recursion_limit: 25   # LangGraph run configuration
+  max_node_executions: 17  # the §14.5 bound, asserted by the tests
+
+# --- Data generation (spec §12.3) ------------------------------------------
+data:
+  design_seed: 7
+  heldout_seed: 42
+  heldout_cases: 100
+  history_days: 14
+  users_total: 25
+  users_admin: 3
+  users_service: 2
+
+# --- Narrative model (spec Appendix B.3) -----------------------------------
+model:
+  mode: mock                       # mock | ollama; mock is the default
+  ollama_host: http://localhost:11434
+  ollama_model: qwen3-coder:30b
+  ollama_timeout_seconds: 120
+  ollama_keep_alive: 30m           # keeps the model resident between cases
+  temperature: 0
+  seed: 7
+  max_untrusted_chars: 120         # user_agent and username capping (§16.4)
+
+# --- Evaluation (spec §18.3) -----------------------------------------------
+evaluation:
+  sweep_guess_min: 3
+  sweep_guess_max: 10

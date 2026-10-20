@@ -1,0 +1,5 @@
+indicator,label,confidence,source
+203.0.113.7,brute_force_source,high,synthetic
+203.0.113.12,credential_stuffing_source,medium,synthetic
+203.0.113.200/29,known_bad_range,medium,synthetic
+2001:db8:bad::/48,brute_force_source,high,synthetic

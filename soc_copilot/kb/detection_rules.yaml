@@ -1,0 +1,48 @@
+# Detection rules (spec Table 19, Table 27).
+#
+# Each rule declares its hypothesis, its ATT&CK technique and WHICH configuration
+# keys supply its threshold and window. The values themselves live in
+# config.yaml, because CLAUDE.md requires one source of truth for every
+# threshold (see docs/DEVIATIONS.md D13).
+
+version: "1.0"
+
+rules:
+
+  - rule: R-GUESS
+    description: >-
+      At least N failures for one account from one IP within W minutes.
+    hypothesis: GUESS
+    attack_id: T1110.001
+    threshold_key: detection.guess_min_failures
+    window_key: detection.guess_window_minutes
+    group_by: [user, src_ip]
+
+  - rule: R-SPRAY
+    description: >-
+      One IP fails against at least N accounts within W minutes, with a median
+      of at most M attempts per account.
+    hypothesis: SPRAY
+    attack_id: T1110.003
+    threshold_key: detection.spray_min_accounts
+    window_key: detection.spray_window_minutes
+    median_key: detection.spray_max_median_attempts
+    group_by: [src_ip]
+
+  - rule: R-SAF
+    description: >-
+      A success on an account with at least N failures on it, from any IP,
+      in the previous W minutes.
+    hypothesis: ATO
+    attack_id: T1110
+    threshold_key: detection.saf_min_failures
+    window_key: detection.saf_lookback_minutes
+    group_by: [user]
+
+# Alerts sharing an account, or an IP that is not a shared VPN or NAT egress,
+# within detection.case_merge_window_minutes merge into one case, which takes
+# the highest hypothesis on the ladder GUESS < SPRAY < ATO (spec §15.1).
+merge:
+  window_key: detection.case_merge_window_minutes
+  never_merge_on_shared_egress: true
+  hypothesis_ladder: [GUESS, SPRAY, ATO]

@@ -1,0 +1,83 @@
+# Evidence checklist per hypothesis (spec Table 19; used by the Planner and by check E6).
+#
+# Item IDs follow the form HYPOTHESIS.Qn used in spec B.2 ("ATO.Q2").
+#
+# scope   account  the item must be answered for each account in scope
+#         case     one answer covers the whole case (it is about the source IP)
+# tools   the catalogue tools that can answer the item, best first. The Planner
+#         schedules the first one whose fact is not already present, which is why
+#         an account upgraded inside a spray needs no second failure count: T8
+#         already reported its attempts (spec §14.8, Figure 4).
+# required  true items must all be answered or the Evidence Gate raises
+#           MISSING_CHECK (check E6); the disposition table's row 1 then fires.
+
+version: "1.0"
+
+hypotheses:
+
+  # --- Password guessing: one account, one source ---------------------------
+  GUESS:
+    attack_id: T1110.001
+    items:
+      - {item: GUESS.Q1,   question: Q1, tools: [T1],  scope: account, required: true,
+         description: "Failures for the account from the source, in the alert window"}
+      - {item: GUESS.Q2,   question: Q2, tools: [T2],  scope: account, required: true,
+         description: "Any success within the success horizon after the last failure"}
+      - {item: GUESS.Q3a,  question: Q3, tools: [T3],  scope: account, required: true,
+         description: "Is the IP, device and country known for this user?"}
+      - {item: GUESS.Q3b,  question: Q3, tools: [T4],  scope: case,    required: true,
+         description: "Threat-intelligence match for the source address"}
+      - {item: GUESS.Q3c,  question: Q3, tools: [T5],  scope: case,    required: true,
+         description: "Network zone and shared-egress flag for the source address"}
+      - {item: GUESS.Q4a,  question: Q4, tools: [T6],  scope: account, required: true,
+         description: "Tickets: password reset, new MFA device or travel notice"}
+      - {item: GUESS.Q4b,  question: Q4, tools: [T7],  scope: account, required: true,
+         description: "Password change in the 48 hours before the first failure"}
+      - {item: GUESS.PRIV, question: Q1, tools: [T9],  scope: account, required: true,
+         description: "Role, privilege, time zone and working hours"}
+      - {item: GUESS.DQ,   question: Q2, tools: [T10], scope: account, required: true,
+         description: "Quarantined records and coverage gaps in the window"}
+
+  # --- Password spraying: one source, many accounts -------------------------
+  SPRAY:
+    attack_id: T1110.003
+    items:
+      - {item: SPRAY.Q1,   question: Q1, tools: [T1],  scope: case,    required: true,
+         description: "Failures from the source address in the alert window"}
+      - {item: SPRAY.Q6,   question: Q6, tools: [T8],  scope: case,    required: true,
+         description: "Accounts targeted, attempts each, share of unknown usernames"}
+      - {item: SPRAY.Q2,   question: Q2, tools: [T2],  scope: account, required: true,
+         description: "Any success for each targeted account; this is what finds a hidden success"}
+      - {item: SPRAY.Q3b,  question: Q3, tools: [T4],  scope: case,    required: true,
+         description: "Threat-intelligence match for the source address"}
+      - {item: SPRAY.Q3c,  question: Q3, tools: [T5],  scope: case,    required: true,
+         description: "Network zone and shared-egress flag for the source address"}
+      - {item: SPRAY.PRIV, question: Q1, tools: [T9],  scope: account, required: true,
+         description: "Whether any targeted account is privileged"}
+      - {item: SPRAY.DQ,   question: Q2, tools: [T10], scope: case,    required: true,
+         description: "Quarantined records and coverage gaps in the window"}
+
+  # --- Account takeover: a success after failures ---------------------------
+  ATO:
+    attack_id: T1110
+    items:
+      - {item: ATO.Q1,   question: Q1, tools: [T1, T8], scope: account, required: true,
+         description: "Failures for the account before the success"}
+      - {item: ATO.Q2,   question: Q2, tools: [T2],  scope: account, required: true,
+         description: "The successful sign-in itself"}
+      - {item: ATO.Q3a,  question: Q3, tools: [T3],  scope: account, required: true,
+         description: "Is the IP, device and country known for this user?"}
+      - {item: ATO.Q3b,  question: Q3, tools: [T4],  scope: case,    required: true,
+         description: "Threat-intelligence match for the source address"}
+      - {item: ATO.Q3c,  question: Q3, tools: [T5],  scope: case,    required: true,
+         description: "Network zone and shared-egress flag for the source address"}
+      - {item: ATO.Q4a,  question: Q4, tools: [T6],  scope: account, required: true,
+         description: "Tickets: password reset, new MFA device or travel notice"}
+      - {item: ATO.Q4b,  question: Q4, tools: [T7],  scope: account, required: true,
+         description: "Password change in the 48 hours before the first failure"}
+      - {item: ATO.Q5,   question: Q5, tools: [T7],  scope: account, required: true,
+         description: "MFA registration or password change in the 60 minutes after the success"}
+      - {item: ATO.PRIV, question: Q1, tools: [T9],  scope: account, required: true,
+         description: "Role, privilege, time zone and working hours"}
+      - {item: ATO.DQ,   question: Q2, tools: [T10], scope: account, required: true,
+         description: "Quarantined records and coverage gaps in the window"}

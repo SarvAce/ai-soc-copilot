@@ -1,0 +1,55 @@
+# Disposition and impact mapped to P1-P4 (spec Table 19, Table 29).
+#
+# Impact is HIGH when a privileged account is involved, persistence is observed,
+# or more than one account was accessed; otherwise NORMAL (spec §15.4).
+# UNRESOLVED splits on whether a success was ruled out, which is why it has
+# two rows here and one row in Table 28.
+
+version: "1.0"
+
+impact_rule:
+  high_when_any:
+    - privileged_account_involved
+    - persistence_observed
+    - more_than_one_account_accessed
+  otherwise: NORMAL
+
+matrix:
+  SUSPECTED_COMPROMISE:
+    HIGH: P1
+    NORMAL: P2
+  UNRESOLVED_SUCCESS_NOT_RULED_OUT:
+    HIGH: P1
+    NORMAL: P2
+  UNRESOLVED_SUCCESS_RULED_OUT:
+    HIGH: P3
+    NORMAL: P3
+  ATTACK_ATTEMPT_NO_ACCESS:
+    HIGH: P2
+    NORMAL: P3
+  LIKELY_BENIGN:
+    HIGH: P3
+    NORMAL: P4
+
+# Disposition table (spec Table 28); the first matching row wins, per account.
+# Kept beside the priority matrix so the case file can show which row fired.
+disposition_rows:
+  - {row: 1, if: "a required checklist item is still unanswered after the loop",
+     disposition: UNRESOLVED}
+  - {row: 2, if: "success_after and malicious_indicator",
+     disposition: SUSPECTED_COMPROMISE}
+  - {row: 3, if: "success_after and benign_explanation",
+     disposition: LIKELY_BENIGN}
+  - {row: 4, if: "success_after",
+     disposition: SUSPECTED_COMPROMISE}
+  - {row: 5, if: "no_success_covered and benign_explanation and no threat-intelligence match",
+     disposition: LIKELY_BENIGN}
+  - {row: 6, if: "no_success_covered",
+     disposition: ATTACK_ATTEMPT_NO_ACCESS}
+
+# The case takes the most severe of its accounts, in this order (spec §15.3).
+case_severity_order:
+  - SUSPECTED_COMPROMISE
+  - UNRESOLVED
+  - ATTACK_ATTEMPT_NO_ACCESS
+  - LIKELY_BENIGN
