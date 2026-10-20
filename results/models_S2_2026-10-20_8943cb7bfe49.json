@@ -17,8 +17,8 @@
       "redraft_used": false,
       "released_by": "first draft",
       "scenario_id": "S2",
-      "seconds_per_draft": 0.1,
-      "seconds_total": 0.1,
+      "seconds_per_draft": 0.2,
+      "seconds_total": 0.2,
       "seconds_warm_up": 0.0,
       "summary": "The evidence points to a suspected compromise for bob. A sign-in for bob succeeded at 02:41 UTC, after 2 failed attempts.",
       "template_used": false
@@ -42,9 +42,9 @@
       "redraft_used": true,
       "released_by": "template",
       "scenario_id": "S2",
-      "seconds_per_draft": 25.0,
-      "seconds_total": 49.9,
-      "seconds_warm_up": 38.5,
+      "seconds_per_draft": 25.2,
+      "seconds_total": 50.4,
+      "seconds_warm_up": 40.2,
       "summary": "Facts only; the narrative model did not produce a valid draft. The evidence points to a suspected compromise for bob. A sign-in for bob succeeded at 02:41 UTC, after 2 failed attempts.",
       "template_used": true
     },
@@ -72,9 +72,9 @@
       "redraft_used": true,
       "released_by": "template",
       "scenario_id": "S2",
-      "seconds_per_draft": 10.5,
-      "seconds_total": 21.1,
-      "seconds_warm_up": 13.3,
+      "seconds_per_draft": 10.4,
+      "seconds_total": 20.8,
+      "seconds_warm_up": 14.2,
       "summary": "Facts only; the narrative model did not produce a valid draft. The evidence points to a suspected compromise for bob. A sign-in for bob succeeded at 02:41 UTC, after 2 failed attempts.",
       "template_used": true
     }

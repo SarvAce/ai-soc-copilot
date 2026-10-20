@@ -1,0 +1,82 @@
+{
+  "config_hash": "8943cb7bfe49",
+  "kb_hash": "68368958f1c7",
+  "measured_on": "2026-10-20",
+  "runs": [
+    {
+      "disposition": "LIKELY_BENIGN",
+      "draft_calls": 1,
+      "draft_failures": 0,
+      "drafts_rejected": 0,
+      "failed_checks": [],
+      "gate_passed": true,
+      "model": "mock",
+      "node_executions": 7,
+      "priority": "P4",
+      "reasons": [],
+      "redraft_used": false,
+      "released_by": "first draft",
+      "scenario_id": "S4",
+      "seconds_per_draft": 0.1,
+      "seconds_total": 0.1,
+      "seconds_warm_up": 0.0,
+      "summary": "The evidence points to a likely benign explanation for carol. A sign-in for carol succeeded at 10:20 UTC, after 6 failed attempts.",
+      "template_used": false
+    },
+    {
+      "disposition": "LIKELY_BENIGN",
+      "draft_calls": 2,
+      "draft_failures": 0,
+      "drafts_rejected": 2,
+      "failed_checks": [
+        "R3",
+        "R7"
+      ],
+      "gate_passed": true,
+      "model": "qwen3-coder:30b",
+      "node_executions": 11,
+      "priority": "P4",
+      "reasons": [
+        "R3: claim 1: the time 00:00 is in no cited fact; claim 2: the time 00:00 is in no cited fact; claim 3: the time 00:00 is in no cited fact; claim 9: the time 00:00 i",
+        "R7: claim 12 says 'confirmed', which claims certainty",
+        "R3: claim 1: the time 00:00 is in no cited fact; claim 2: the time 00:00 is in no cited fact; claim 3: the time 00:00 is in no cited fact; claim 7: carol@corp.examp"
+      ],
+      "redraft_used": true,
+      "released_by": "template",
+      "scenario_id": "S4",
+      "seconds_per_draft": 52.3,
+      "seconds_total": 104.5,
+      "seconds_warm_up": 38.3,
+      "summary": "Facts only; the narrative model did not produce a valid draft. The evidence points to a likely benign explanation for carol. A sign-in for carol succeeded at 10:20 UTC, after 6 failed attempts.",
+      "template_used": true
+    },
+    {
+      "disposition": "LIKELY_BENIGN",
+      "draft_calls": 2,
+      "draft_failures": 0,
+      "drafts_rejected": 2,
+      "failed_checks": [
+        "R3",
+        "R7"
+      ],
+      "gate_passed": true,
+      "model": "qwen3.5:4b",
+      "node_executions": 11,
+      "priority": "P4",
+      "reasons": [
+        "R3: claim 1: the time 00:00 is in no cited fact; claim 2: the time 00:00 is in no cited fact; claim 3: the time 00:00 is in no cited fact; claim 4: the time 00:00 i",
+        "R3: claim 1: the time 00:00 is in no cited fact; claim 2: the time 00:00 is in no cited fact; claim 3: the time 00:00 is in no cited fact; claim 9: the time 00:00 i",
+        "R7: claim 12 says 'confirmed', which claims certainty"
+      ],
+      "redraft_used": true,
+      "released_by": "template",
+      "scenario_id": "S4",
+      "seconds_per_draft": 19.1,
+      "seconds_total": 38.2,
+      "seconds_warm_up": 13.3,
+      "summary": "Facts only; the narrative model did not produce a valid draft. The evidence points to a likely benign explanation for carol. A sign-in for carol succeeded at 10:20 UTC, after 6 failed attempts.",
+      "template_used": true
+    }
+  ],
+  "scenario_id": "S4"
+}
