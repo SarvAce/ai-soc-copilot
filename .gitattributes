@@ -1,0 +1,11 @@
+# Keep every text file LF in the working tree as well as in the index.
+#
+# Without this, git's autocrlf converts files to CRLF on checkout on Windows.
+# A fresh clone would then hash the knowledge base and the generated logs
+# differently from the machine that wrote them, which would break the
+# determinism metric (spec §18.2) and the KB hash recorded with every result.
+* text=auto eol=lf
+
+*.png binary
+*.docx binary
+*.pptx binary
