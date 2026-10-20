@@ -261,3 +261,27 @@ After each work package: `pytest -q`, fix every failure, commit, and a short sum
 **Q9 — `requirements.txt` location.** Table 39 says `backend/requirements.txt` is "rewritten in UTF-8 with pinned versions", but `backend/` is removed. I will put it at the repository root, where the `CLAUDE.md` commands expect it.
 
 **Q10 — Ollama cold start.** The first call after a reboot took 127 s; warm calls take 5.8 s. I will have the app load the model once when Ollama mode is selected, show a spinner, and pass `keep_alive` so it stays resident. Worth knowing for the live demo: select Ollama mode a minute before you present.
+
+**Q11 — SqliteSaver (WP8, still open; asked 20 Oct 2026, not yet decided).** The
+last item of WP8 is `SqliteSaver`, so a case paused at the analyst interrupt
+survives an application restart. It needs `langgraph-checkpoint-sqlite`, which
+is not in the pinned stack, and `CLAUDE.md` reserves a new dependency for you.
+Everything else in WP8 is built. Three options:
+
+1. **Add it.** `pip install langgraph-checkpoint-sqlite`, pin it in
+   `requirements.txt`, make the checkpointer selectable (MemorySaver by
+   default, SQLite when chosen) and test that a paused case resumes in a fresh
+   process. It is a first-party LangGraph package and Appendix B / WP8 name
+   `SqliteSaver` directly, so this is the faithful reading. One network
+   download; the demonstration still runs offline afterwards.
+2. **Optional support only.** A checkpointer factory that uses `SqliteSaver`
+   when the package happens to be importable and falls back to `MemorySaver`
+   otherwise. `requirements.txt` is untouched, but the feature cannot be
+   tested or demonstrated here unless the package is installed anyway.
+3. **Drop it.** Record it in `docs/DEVIATIONS.md` as dropped. Your drop order
+   (D11) puts `SqliteSaver` fourth of five and everything above it — the hash
+   chain, S11 and the threshold sweep — is built. The live interrupt works; it
+   simply does not survive a restart, which a demonstration never does.
+
+My recommendation is 1 if the viva may ask about durability, 3 otherwise.
+Nothing else is waiting on this.
