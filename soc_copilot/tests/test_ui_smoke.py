@@ -32,6 +32,23 @@ def _no_exception(app: AppTest) -> None:
     assert not app.exception, "\n".join(str(error) for error in app.exception)
 
 
+def _element_count(app: AppTest, kind: str) -> int:
+    """How many elements of one type the page rendered, at any depth.
+
+    AppTest has no typed accessor for every element — a chart arrives as an
+    UnknownElement — so a type-name walk is the only way to assert one is there.
+    """
+    found = 0
+    stack = [app.main]
+    while stack:
+        block = stack.pop()
+        for element in getattr(block, "children", {}).values():
+            if type(element).__name__ == kind:
+                found += 1
+            stack.append(element)
+    return found
+
+
 def _text_of(app: AppTest) -> str:
     """Everything the page rendered, as one string."""
     parts = [element.value for element in app.markdown]
@@ -417,3 +434,39 @@ def test_the_evaluation_page_offers_the_summary_download():
     app = _app(page="Evaluation")
     _no_exception(app)
     assert "Download summary.md" in [button.label for button in app.download_button]
+
+
+# --- WP8 added value, through the interface -------------------------------
+
+
+def test_the_evaluation_page_plots_the_threshold_sweep():
+    """Spec §18.3: the trade-off curve, with the default marked."""
+    from soc_copilot.ui.evaluation import newest_sweep
+
+    app = _app(page="Evaluation")
+    _no_exception(app)
+    text = _text_of(app)
+    assert "R-GUESS threshold sweep" in text
+    if newest_sweep() is None:
+        assert "No sweep has been saved yet" in text
+        return
+    assert "is the default of five reasonable?" in text
+    # The curve is drawn as a chart. AppTest has no typed accessor for a
+    # vega-lite chart, so it is counted by element type, and the table beside
+    # it is checked for the one row per swept threshold.
+    assert _element_count(app, "UnknownElement") >= 1
+    assert "◀ default" in str(app.dataframe[-1].value.to_dict())
+    assert len(app.dataframe[-1].value) == 8          # thresholds 3 to 10
+    # And it states what its own dataset decides (§18.5).
+    assert "built into the dataset" in text
+
+
+def test_the_case_file_says_the_audit_chain_verifies():
+    """Added value SOC-PoC-014: the page says whether the log is still intact."""
+    _run_case("S2")
+    app = _app("S2", "Case file")
+    _no_exception(app)
+    text = _text_of(app)
+    assert "audit chain verified" in text
+    assert "audit chain broken" not in text
+    assert not app.error

@@ -51,7 +51,7 @@ class HeldOutRun:
         return self.opened == self.truth.should_alert
 
 
-def _rows_to_lines(rows: list[dict[str, Any]]) -> list[str]:
+def rows_to_lines(rows: list[dict[str, Any]]) -> list[str]:
     """One JSON object per line, which is the shape the normaliser reads."""
     return [json.dumps(row, sort_keys=True, default=str) for row in rows]
 
@@ -76,7 +76,7 @@ def run_heldout_case(
     started = time.perf_counter()
     outcome = HeldOutRun(case.case_id, case.template, case.below_threshold, case.truth)
     case_kb = kb_for(kb, case)
-    result = normalise(_rows_to_lines(case.rows))
+    result = normalise(rows_to_lines(case.rows))
     store = EventStore(result, case_kb)
     # The cutoff is the start of the analysis day, so nothing from the attack
     # can become "known" for the victim (spec §12.4).

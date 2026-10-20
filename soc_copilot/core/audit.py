@@ -52,6 +52,57 @@ def append_entry(
     return entry
 
 
+def entry_hash_of(entry: AuditEntry) -> str:
+    """Recompute one entry's hash from its own content (spec §14.7)."""
+    # Exactly the fields append_entry hashes, and in the same shape: anything
+    # left out here would be a field the chain does not actually protect.
+    return stable_hash({
+        "seq": entry.seq, "node": entry.node, "decision": entry.decision,
+        "reason": entry.reason, "fact_ids": entry.fact_ids,
+        "query_ids": entry.query_ids, "output_hash": entry.output_hash,
+        "prev_hash": entry.prev_hash,
+    })
+
+
+@dataclass
+class ChainCheck:
+    """Whether an audit log still verifies, and where it first does not."""
+
+    verified: bool
+    entries: int = 0
+    broken_at: int | None = None        # the seq of the first entry that fails
+    reason: str = ""
+
+    def __bool__(self) -> bool:
+        """True when the whole chain verifies."""
+        return self.verified
+
+
+def verify_chain(audit: list[AuditEntry]) -> ChainCheck:
+    """Check an audit log end to end (added value SOC-PoC-014).
+
+    Three things have to hold at every entry: its hash is the hash of its own
+    content, it carries the hash of the entry before it, and the sequence
+    numbers run unbroken from one. Any later edit to the log therefore shows up
+    at the entry that was edited, which is what makes the log evidence rather
+    than a list.
+    """
+    previous = ""
+    for position, entry in enumerate(audit, start=1):
+        if entry.seq != position:
+            return ChainCheck(False, len(audit), entry.seq,
+                              f"entry {position} carries sequence number {entry.seq}")
+        if entry.prev_hash != previous:
+            return ChainCheck(False, len(audit), entry.seq,
+                              "the entry does not carry the hash of the one before it")
+        if entry.entry_hash != entry_hash_of(entry):
+            return ChainCheck(False, len(audit), entry.seq,
+                              "the entry's content does not match its hash")
+        previous = entry.entry_hash
+    return ChainCheck(True, len(audit), None,
+                      f"all {len(audit)} entries verify")
+
+
 def model_note(model: Any) -> str:
     """Name the model a node used, so the trace can show it (§17, Table 33)."""
     name = getattr(model, "name", "") if model is not None else ""

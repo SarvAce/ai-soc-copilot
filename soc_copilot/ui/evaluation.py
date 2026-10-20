@@ -173,7 +173,65 @@ def render(settings) -> None:
         by_template(result)
     misses(result)
     catch_rates(result)
+    threshold_sweep(int(cases))
 
     st.download_button("Download summary.md", render_markdown(result),
                        file_name="summary.md", mime="text/markdown",
                        key="evaluation-md")
+
+
+# --- the threshold sweep (spec §18.3, added value) ------------------------
+
+
+def newest_sweep() -> dict[str, Any] | None:
+    """The most recent saved threshold sweep, or None if it has never run."""
+    files = sorted(RESULTS_DIR.glob("sweep_*.json"))
+    if not files:
+        return None
+    return json.loads(files[-1].read_text(encoding="utf-8"))
+
+
+@st.cache_data(show_spinner=False)
+def run_sweep_now(_config_hash: str, count: int) -> dict[str, Any]:
+    """Run the R-GUESS sweep, cached on the configuration it ran under."""
+    from soc_copilot.eval.sweep import measure as measure_sweep
+
+    return measure_sweep(count)
+
+
+def threshold_sweep(cases: int) -> None:
+    """The §18.3 chart: missed attacks against false alerts, threshold by threshold."""
+    with st.container(border=True):
+        section_heading("R-GUESS threshold sweep",
+                        "(spec §18.3 — is the default of five reasonable?)")
+        result = st.session_state.get("sweep_result") or newest_sweep()
+        if st.button("Run the sweep now"):
+            with st.spinner("Re-running the Detector at every threshold ..."):
+                result = run_sweep_now(config_hash(), int(cases))
+            st.session_state["sweep_result"] = result
+        if result is None:
+            st.caption("No sweep has been saved yet. Press **Run the sweep "
+                       "now**, or run `python -m soc_copilot.eval.sweep`.")
+            return
+
+        default = result["default_threshold"]
+        rows = {
+            "R-GUESS attacks detected": {
+                point["threshold"]: point["guess_attacks_detected"]
+                for point in result["points"]},
+            "False alerts": {point["threshold"]: point["false_alerts"]
+                             for point in result["points"]},
+        }
+        st.line_chart(rows, x_label="R-GUESS threshold (failures)",
+                      y_label="logs that opened a case")
+        st.dataframe(
+            [{"Threshold": point["threshold"],
+              "Attacks detected": f"{point['attacks_detected']}/{point['attacks_total']}",
+              "False alerts": f"{point['false_alerts']}/{point['benign_total']}",
+              "R-GUESS attacks": f"{point['guess_attacks_detected']}"
+                                 f"/{point['guess_attacks_total']}",
+              "Default": "◀ default" if point["threshold"] == default else ""}
+             for point in result["points"]],
+            hide_index=True, width="stretch")
+        st.info(result["reading"], icon="📈")
+        st.caption(result["caveat"])

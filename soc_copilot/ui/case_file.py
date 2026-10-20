@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from soc_copilot.core.audit import verify_chain
 from soc_copilot.core.playbook import short_name
 from soc_copilot.eval.pipeline import RunResult
 from soc_copilot.ui.components import (
@@ -178,6 +179,14 @@ def validation_panel(run: RunResult) -> None:
             st.warning(f"{gate} {check.check_id}: {check.reason}", icon="⚠️")
         for gap in run.gaps:
             st.info(f"{gap.gap_type}: {gap.detail}", icon="ℹ️")
+        # Added value SOC-PoC-014: the audit log is hash-chained, so the page
+        # can say whether the decision path it is showing is still intact.
+        chain = verify_chain(run.audit)
+        chips([(f"audit chain verified · {chain.entries} entries", "green")
+               if chain.verified else
+               (f"audit chain broken at entry {chain.broken_at}", "red")])
+        if not chain.verified:
+            st.error(f"The audit log does not verify: {chain.reason}", icon="⚠️")
 
 
 def download_row(run: RunResult, key: str) -> None:

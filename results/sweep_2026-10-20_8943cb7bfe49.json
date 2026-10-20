@@ -1,0 +1,107 @@
+{
+  "caveat": "The N - 1 variants of the held-out set carry exactly 4 failures, because that is one below the default of 5. A threshold of 4 or less is therefore certain to open a case on them, so the false alerts at the left of the curve are partly built into the dataset. What the sweep shows independently is the right-hand side: raising the threshold above 5 removes no false alert and loses real attacks, because the attack logs carry between 5 and 10 failures.",
+  "config_hash": "8943cb7bfe49",
+  "dataset": "held-out set, seed 42",
+  "default_threshold": 5,
+  "guess_templates": [
+    "S1",
+    "S4",
+    "S5",
+    "S6a",
+    "S6b",
+    "S10"
+  ],
+  "kb_hash": "68368958f1c7",
+  "measured_on": "2026-10-20",
+  "points": [
+    {
+      "attacks_detected": 80,
+      "attacks_total": 80,
+      "benign_total": 20,
+      "false_alerts": 14,
+      "guess_attacks_detected": 53,
+      "guess_attacks_total": 53,
+      "guess_benign_total": 14,
+      "guess_false_alerts": 14,
+      "threshold": 3
+    },
+    {
+      "attacks_detected": 80,
+      "attacks_total": 80,
+      "benign_total": 20,
+      "false_alerts": 14,
+      "guess_attacks_detected": 53,
+      "guess_attacks_total": 53,
+      "guess_benign_total": 14,
+      "guess_false_alerts": 14,
+      "threshold": 4
+    },
+    {
+      "attacks_detected": 80,
+      "attacks_total": 80,
+      "benign_total": 20,
+      "false_alerts": 0,
+      "guess_attacks_detected": 53,
+      "guess_attacks_total": 53,
+      "guess_benign_total": 14,
+      "guess_false_alerts": 0,
+      "threshold": 5
+    },
+    {
+      "attacks_detected": 71,
+      "attacks_total": 80,
+      "benign_total": 20,
+      "false_alerts": 0,
+      "guess_attacks_detected": 44,
+      "guess_attacks_total": 53,
+      "guess_benign_total": 14,
+      "guess_false_alerts": 0,
+      "threshold": 6
+    },
+    {
+      "attacks_detected": 67,
+      "attacks_total": 80,
+      "benign_total": 20,
+      "false_alerts": 0,
+      "guess_attacks_detected": 40,
+      "guess_attacks_total": 53,
+      "guess_benign_total": 14,
+      "guess_false_alerts": 0,
+      "threshold": 7
+    },
+    {
+      "attacks_detected": 63,
+      "attacks_total": 80,
+      "benign_total": 20,
+      "false_alerts": 0,
+      "guess_attacks_detected": 36,
+      "guess_attacks_total": 53,
+      "guess_benign_total": 14,
+      "guess_false_alerts": 0,
+      "threshold": 8
+    },
+    {
+      "attacks_detected": 61,
+      "attacks_total": 80,
+      "benign_total": 20,
+      "false_alerts": 0,
+      "guess_attacks_detected": 34,
+      "guess_attacks_total": 53,
+      "guess_benign_total": 14,
+      "guess_false_alerts": 0,
+      "threshold": 9
+    },
+    {
+      "attacks_detected": 59,
+      "attacks_total": 80,
+      "benign_total": 20,
+      "false_alerts": 0,
+      "guess_attacks_detected": 32,
+      "guess_attacks_total": 53,
+      "guess_benign_total": 14,
+      "guess_false_alerts": 0,
+      "threshold": 10
+    }
+  ],
+  "reading": "The lowest threshold that raises no false alert is 5; the default of 5 is that value and detects 53 of 53 R-GUESS attacks. The best detection among thresholds with no false alert is at 5 (53/53)."
+}

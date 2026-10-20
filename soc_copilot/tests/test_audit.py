@@ -231,3 +231,83 @@ def test_no_timeline_line_prints_a_username_that_is_not_an_account(design_runs):
                 continue
             assert event.user not in item.text, f"{scenario_id}: {item.text}"
             assert "not in the inventory" in item.text
+
+
+# --- the hash chain verifies, and tampering breaks it (WP8, SOC-PoC-014) ---
+
+
+def test_a_real_audit_log_verifies(design_runs):
+    """Every design scenario's log verifies end to end."""
+    from soc_copilot.core.audit import verify_chain
+
+    for scenario_id in design_runs.runs:
+        run = _run(design_runs, scenario_id)
+        chain = verify_chain(run.audit)
+        assert chain.verified, f"{scenario_id}: {chain.reason}"
+        assert chain.entries == len(run.audit)
+        assert chain.broken_at is None
+        assert bool(chain) is True
+
+
+def test_an_empty_log_verifies_trivially():
+    """A case that has not run yet has nothing to contradict."""
+    from soc_copilot.core.audit import verify_chain
+
+    assert verify_chain([]).verified is True
+
+
+@pytest.mark.parametrize("position", [0, 1, -1])
+def test_editing_any_entry_breaks_verification_at_that_entry(design_runs, position):
+    """The point of the chain: a later edit is detectable, and localised."""
+    from soc_copilot.core.audit import verify_chain
+
+    run = _run(design_runs, "S2")
+    tampered = [entry.model_copy(deep=True) for entry in run.audit]
+    target = tampered[position]
+    target.reason = "nothing to see here"
+    chain = verify_chain(tampered)
+    assert chain.verified is False
+    assert chain.broken_at == target.seq
+    assert "does not match its hash" in chain.reason
+
+
+def test_removing_an_entry_breaks_the_chain(design_runs):
+    """Deleting a step is as detectable as rewriting one."""
+    from soc_copilot.core.audit import verify_chain
+
+    run = _run(design_runs, "S2")
+    without = [entry.model_copy(deep=True) for entry in run.audit]
+    removed = without.pop(3)
+    chain = verify_chain(without)
+    assert chain.verified is False
+    # The entry that followed the removed one is where the log stops adding up.
+    assert chain.broken_at == removed.seq + 1
+
+
+def test_reordering_two_entries_breaks_the_chain(design_runs):
+    """A log that is out of order is not a log of what happened."""
+    from soc_copilot.core.audit import verify_chain
+
+    run = _run(design_runs, "S2")
+    swapped = [entry.model_copy(deep=True) for entry in run.audit]
+    swapped[2], swapped[3] = swapped[3], swapped[2]
+    assert verify_chain(swapped).verified is False
+
+
+def test_a_rewritten_entry_cannot_be_rehashed_into_place(design_runs):
+    """Rehashing the edited entry only moves the break to the next one.
+
+    This is what the chain buys over a per-entry hash: correcting one entry's
+    own hash leaves its successor carrying the hash of the entry that no longer
+    exists, so the whole tail has to be rewritten to hide a single edit.
+    """
+    from soc_copilot.core.audit import entry_hash_of, verify_chain
+
+    run = _run(design_runs, "S2")
+    tampered = [entry.model_copy(deep=True) for entry in run.audit]
+    tampered[2].reason = "nothing to see here"
+    tampered[2].entry_hash = entry_hash_of(tampered[2])
+    chain = verify_chain(tampered)
+    assert chain.verified is False
+    assert chain.broken_at == tampered[3].seq
+    assert "does not carry the hash of the one before it" in chain.reason

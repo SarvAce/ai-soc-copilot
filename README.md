@@ -15,7 +15,9 @@ Proof of Concept), Symbiosis Institute of Technology, Pune.
 > log and Ollama mode, all six Streamlit pages, the 100-case held-out set and
 > the full Table 34 metric suite. Scenarios S1-S11 reproduce their Table 20
 > outcomes and S1, S2, S3, S4, S6a and S8 run end to end in the application, in
-> mock mode and in Ollama mode. Still to come: the added value of WP8.
+> mock mode and in Ollama mode. **WP8 (added value) is in**: the hash-chained
+> audit log with its verifier, the §18.3 threshold sweep plotted on the
+> Evaluation page, and the peer-tester checklist in `docs/PEER_TESTING.md`.
 > This README is rewritten in full, with measured results, when the build
 > finishes. See `PLAN.md` for the plan and `docs/DEVIATIONS.md` for every
 > clarification made along the way.
@@ -82,7 +84,8 @@ Tests and evaluation:
 pytest -q
 python -m soc_copilot.eval.run_faults                  # Table 32 catch rates
 python -m soc_copilot.eval.model_compare S2            # mock vs each local model
-python -m soc_copilot.eval.run_suite                   # full metric suite (WP7)
+python -m soc_copilot.eval.run_suite                   # full metric suite (Table 34)
+python -m soc_copilot.eval.sweep                       # R-GUESS threshold sweep (§18.3)
 pytest soc_copilot/tests/test_ollama_live.py -v        # needs Ollama running
 ```
 
@@ -108,6 +111,17 @@ every window threshold), is not one of the held-out templates and so cannot
 appear in that table; `tests/test_detector.py` reproduces it. No analyst time
 saving is claimed; checks automated and seconds per case are reported instead
 (§18.5).
+
+### Is the R-GUESS threshold of five right?
+
+`python -m soc_copilot.eval.sweep` varies it from 3 to 10 over the held-out set
+and reruns the Detector at each value; the Evaluation page plots the curve.
+Measured today: **5 is the lowest threshold that raises no false alert, and it
+still detects every R-GUESS attack in the set** — every higher value loses
+attacks and removes no false alert. The saved result also says what the curve
+does *not* prove: the near-threshold variants carry exactly four failures by
+construction, so the false alerts below five are partly a property of the
+dataset rather than of the rule.
 
 ### Validation, as measured today
 
@@ -137,13 +151,23 @@ docs/                                   the submitted proposal, pitch deck and f
 results/                                measured results, with their config hashes
 ```
 
+## Peer testing
+
+`docs/PEER_TESTING.md` is the §18.4 walkthrough: three to five classmates act as
+Tier-1 analysts on S1, S2, S4 and S6a, and record their decision, the statements
+they checked against the raw events, and their confidence. It is a usability
+check, not a time study, and its results are reported qualitatively.
+
 ## How a case is decided
 
 Tools compute facts; rule tables decide; the model only writes. Nothing a model
 produces can set a disposition, a priority, a recommendation or a technique ID,
 because the narrative schema has no such field. A run is bounded at 17 completed
 node executions and every node appends a hash-chained audit entry, so the whole
-decision path can be replayed from the case file.
+decision path can be replayed from the case file. `verify_chain` re-derives
+every entry's hash and the link to the one before it, so a later edit to the log
+shows up at the entry that was edited; the case file says whether the chain it
+is showing still verifies.
 
 ## Limitations
 
