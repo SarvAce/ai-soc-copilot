@@ -1,4 +1,5 @@
 import { CounterBar, SyntheticBanner } from './components/ui';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { ArchitecturePage } from './pages/ArchitecturePage';
 import { CaseFile } from './pages/CaseFile';
 import { EvaluationPage } from './pages/EvaluationPage';
@@ -46,12 +47,14 @@ function Shell() {
         <CounterBar counters={counters} limits={limits} />
       </header>
       <main id="main">
-        {page === 'queue' && <QueuePage />}
-        {page === 'flow' && <FlowPage />}
-        {page === 'case' && <div className="page"><CaseFile /></div>}
-        {page === 'review' && <ReviewPage />}
-        {page === 'evaluation' && <EvaluationPage />}
-        {page === 'architecture' && <ArchitecturePage />}
+        <ErrorBoundary>
+          {page === 'queue' && <QueuePage />}
+          {page === 'flow' && <FlowPage />}
+          {page === 'case' && <div className="page"><CaseFile /></div>}
+          {page === 'review' && <ReviewPage />}
+          {page === 'evaluation' && <EvaluationPage />}
+          {page === 'architecture' && <ArchitecturePage />}
+        </ErrorBoundary>
       </main>
       <footer><SyntheticBanner /></footer>
     </>
@@ -59,5 +62,11 @@ function Shell() {
 }
 
 export function App() {
-  return <StoreProvider><Shell /></StoreProvider>;
+  return (
+    <ErrorBoundary>
+      <StoreProvider>
+        <Shell />
+      </StoreProvider>
+    </ErrorBoundary>
+  );
 }

@@ -114,6 +114,26 @@ function Exec({ step, execs, children }: { step: NodeEvent; execs: NodeEvent[]; 
   );
 }
 
+export function DetectorStep({ execs, state, index }: CardProps & { index?: number }) {
+  const { stage1, caseId } = useStore();
+  const kase = stage1?.cases.find((c) => c.case_id === caseId) ?? stage1?.cases[0];
+  return (
+    <Shell node="detector" state={state} execs={execs} index={index}>
+      <div className="small">
+        <b>Stage 1 Detection:</b> {kase ? `${kase.rule} opened ${kase.case_id} (${kase.hypothesis})` : 'No case opened'}
+      </div>
+      {kase && (
+        <div className="chips">
+          <span className="chip chip-ok">{kase.rule}</span>
+          <span className="chip">{kase.hypothesis}</span>
+          <span className="chip">{kase.users.length} user(s)</span>
+          <span className="chip">{kase.src_ips.join(', ')}</span>
+        </div>
+      )}
+    </Shell>
+  );
+}
+
 export function PlannerStep({ execs, state, index }: CardProps & { index?: number }) {
   return (
     <Shell node="planner" state={state} execs={execs} index={index}>
@@ -222,6 +242,7 @@ export function FinalizeStep({ execs, state, index }: CardProps & { index?: numb
 }
 
 export const STEP_COMPONENTS = {
+  detector: DetectorStep,
   planner: PlannerStep, investigator: InvestigatorStep, evidence_gate: EvidenceGateStep,
   reporter: ReporterStep, report_gate: ReportGateStep, analyst_review: AnalystReviewStep,
   finalize: FinalizeStep,

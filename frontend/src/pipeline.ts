@@ -1,8 +1,8 @@
-import type { Gap, NodeEvent, NodeName } from './types';
+import type { Case, Gap, NodeEvent, NodeName } from './types';
 import type { SourceKind } from './components/ui';
 
 export const NODES: NodeName[] = [
-  'planner', 'investigator', 'evidence_gate', 'reporter', 'report_gate', 'analyst_review', 'finalize',
+  'detector', 'planner', 'investigator', 'evidence_gate', 'reporter', 'report_gate', 'analyst_review', 'finalize',
 ];
 
 export interface NodeMeta {
@@ -17,6 +17,11 @@ export interface NodeMeta {
 }
 
 export const META: Record<NodeName, NodeMeta> = {
+  detector: {
+    n: 0, title: 'Detector', role: 'Stage 1 sliding-window alert detection',
+    input: 'normalised sign-in stream (JSONL)', output: 'case: Case (hypotheses & scope)',
+    source: 'rule', sourceNote: 'R-GUESS, R-SPRAY, R-SAF sliding-window rules',
+  },
   planner: {
     n: 1, title: 'Planner', role: 'Chooses which checks to run',
     input: 'case · hypotheses · open gaps', output: 'plan: ToolCall[]',
@@ -54,7 +59,7 @@ export const META: Record<NodeName, NodeMeta> = {
   },
 };
 
-export type NodeState = 'idle' | 'done' | 'current' | 'waiting';
+export type NodeState = 'idle' | 'done' | 'current' | 'waiting' | 'failed';
 
 export interface EdgeInfo {
   id: string;
@@ -72,10 +77,13 @@ export interface EdgeInfo {
   taken: boolean;
   /** Decision on the latest walk. */
   decision: string;
+  /** Highlighted because its connected node is currently selected. */
+  highlighted?: boolean;
 }
 
 /** The static shape of the compiled graph (graph/build.py), for idle edges. */
 export const EDGE_DEFS: { source: string; target: string; loop: boolean; idle: string }[] = [
+  { source: 'detector', target: 'planner', loop: false, idle: 'case' },
   { source: 'planner', target: 'investigator', loop: false, idle: 'plan' },
   { source: 'investigator', target: 'evidence_gate', loop: false, idle: 'queries · facts' },
   { source: 'evidence_gate', target: 'planner', loop: true, idle: 're-plan' },
@@ -101,6 +109,12 @@ function carried(steps: NodeEvent[], i: number): { label: string; title: string;
   const step = steps[i]!;
   const p = step.produced;
   switch (step.node) {
+    case 'detector':
+      return {
+        label: `case opened · ${step.decision}`,
+        title: 'case: Case (hypotheses & scope)',
+        payload: step.produced,
+      };
     case 'planner':
       return { label: `${p.plan?.length ?? 0} tool calls`, title: 'plan: ToolCall[]', payload: { plan: p.plan } };
     case 'investigator': {
@@ -164,16 +178,36 @@ function carried(steps: NodeEvent[], i: number): { label: string; title: string;
 }
 
 /** Edges of the run so far. `paused` means the graph waits at the interrupt. */
-export function deriveEdges(steps: NodeEvent[], revealed: number, settled: boolean, paused: boolean): EdgeInfo[] {
+export function deriveEdges(
+  steps: NodeEvent[],
+  revealed: number,
+  settled: boolean,
+  paused: boolean,
+  selectedNode?: NodeName | null,
+  caseObj?: Case | null,
+): EdgeInfo[] {
   const shown = steps.slice(0, revealed);
   const byId = new Map<string, EdgeInfo>();
   for (const def of EDGE_DEFS) {
     byId.set(edgeId(def.source, def.target), {
       id: edgeId(def.source, def.target), source: def.source, target: def.target,
       count: 0, label: def.idle, payloadTitle: '', payload: null, loop: def.loop,
-      active: false, taken: false, decision: '',
+      active: false, taken: false, decision: '', highlighted: false,
     });
   }
+
+  // Handle detector -> planner edge
+  const detEdge = byId.get(edgeId('detector', 'planner'));
+  if (detEdge && (caseObj || shown.length > 0)) {
+    detEdge.taken = true;
+    detEdge.count = 1;
+    detEdge.label = caseObj ? `${caseObj.rule} → Case ${caseObj.case_id}` : 'case opened';
+    detEdge.payloadTitle = 'case: Case (scope & hypotheses)';
+    detEdge.payload = caseObj ?? null;
+    detEdge.decision = caseObj?.rule ?? 'R-ALERT';
+    detEdge.active = !settled && shown.length === 0;
+  }
+
   const walk = (i: number, target: string, active: boolean) => {
     const step = shown[i]!;
     const edge = byId.get(edgeId(step.node, target));
@@ -188,21 +222,70 @@ export function deriveEdges(steps: NodeEvent[], revealed: number, settled: boole
   }
   const last = shown[shown.length - 1];
   if (last) {
-    if (last.node === 'finalize') walk(shown.length - 1, '__end__', false);
-    else if (last.node === 'report_gate' && paused && revealed === steps.length
-             && ['pass', 'flagged'].includes(last.decision)) {
-      walk(shown.length - 1, 'analyst_review', false);
+    if (last.node === 'planner') {
+      walk(shown.length - 1, 'investigator', !settled);
+    } else if (last.node === 'investigator') {
+      walk(shown.length - 1, 'evidence_gate', !settled);
+    } else if (last.node === 'evidence_gate') {
+      if (last.decision === 're-plan') {
+        walk(shown.length - 1, 'planner', !settled);
+      } else {
+        walk(shown.length - 1, 'reporter', !settled);
+      }
+    } else if (last.node === 'reporter') {
+      walk(shown.length - 1, 'report_gate', !settled);
+    } else if (last.node === 'report_gate') {
+      if (['redraft', 'template'].includes(last.decision)) {
+        walk(shown.length - 1, 'reporter', !settled);
+      } else if (['pass', 'flagged'].includes(last.decision)) {
+        walk(shown.length - 1, 'analyst_review', !settled || (paused && revealed === steps.length));
+      }
+    } else if (last.node === 'analyst_review') {
+      walk(shown.length - 1, 'finalize', !settled && !paused);
+    } else if (last.node === 'finalize') {
+      walk(shown.length - 1, '__end__', false);
     }
   }
+
+  if (selectedNode) {
+    for (const edge of byId.values()) {
+      if (edge.source === selectedNode || edge.target === selectedNode) {
+        edge.highlighted = true;
+      }
+    }
+  }
+
   return [...byId.values()];
 }
 
-export function nodeState(node: NodeName, shown: NodeEvent[], settled: boolean, paused: boolean): NodeState {
+export function nodeState(
+  node: NodeName,
+  shown: NodeEvent[],
+  settled: boolean,
+  paused: boolean,
+  hasCase = true,
+): NodeState {
+  if (node === 'detector') {
+    return hasCase ? 'done' : 'idle';
+  }
   const last = shown[shown.length - 1];
   if (node === 'analyst_review' && paused && settled && last?.node === 'report_gate'
       && ['pass', 'flagged'].includes(last.decision)) return 'waiting';
   if (last && last.node === node && !settled) return 'current';
-  return shown.some((s) => s.node === node) ? 'done' : 'idle';
+  
+  const lastOfThis = [...shown].reverse().find((s) => s.node === node);
+  if (lastOfThis) {
+    if (node === 'evidence_gate' && lastOfThis.decision === 're-plan') {
+      const laterGate = shown.slice(shown.indexOf(lastOfThis) + 1).find((s) => s.node === 'evidence_gate');
+      if (!laterGate) return 'failed';
+    }
+    if (node === 'report_gate' && ['redraft', 'template'].includes(lastOfThis.decision)) {
+      const laterGate = shown.slice(shown.indexOf(lastOfThis) + 1).find((s) => s.node === 'report_gate');
+      if (!laterGate) return 'failed';
+    }
+    return 'done';
+  }
+  return 'idle';
 }
 
 export interface LoopNote {

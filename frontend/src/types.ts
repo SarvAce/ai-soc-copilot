@@ -7,7 +7,7 @@ export type Disposition =
 export type Priority = 'P1' | 'P2' | 'P3' | 'P4';
 export type Polarity = 'MALICIOUS' | 'BENIGN' | 'NEUTRAL';
 export type NodeName =
-  | 'planner' | 'investigator' | 'evidence_gate' | 'reporter'
+  | 'detector' | 'planner' | 'investigator' | 'evidence_gate' | 'reporter'
   | 'report_gate' | 'analyst_review' | 'finalize';
 
 export interface Event {
