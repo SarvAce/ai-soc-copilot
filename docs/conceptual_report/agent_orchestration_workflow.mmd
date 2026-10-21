@@ -1,0 +1,39 @@
+flowchart TD
+    START(["START (Stage 1 Detector opens Case C-xx)<br/>Initial CaseState: case, hypotheses=[H0], evidence_retries=0,<br/>report_retries=0, used_template=False, status='INVESTIGATING'"])
+
+    subgraph Loop1["Bounded Evidence Loop (Max 3 Passes: evidence_retries ∈ {0, 1, 2})"]
+        P["Node 1: planner (agents/planner.py)<br/>• Reads: case, hypotheses, facts, evidence_check, queries<br/>• Upgrades hypothesis to ATO if gap == HYPOTHESIS_UPGRADE<br/>• Expands unanswered checklist items from kb/evidence_requirements.yaml<br/>• De-duplicates against prior QueryRecords<br/>• Writes: hypotheses, plan: list[ToolCall], status='INVESTIGATING', audit"]
+
+        I["Node 2: investigator (agents/investigator.py)<br/>• Reads: case, hypotheses, plan, queries, facts, discoveries<br/>• Validates scope, ≤48h window, and call signature uniqueness<br/>• Runs read-only tools T1–T10 against EventStore & KB<br/>• Assigns QRY01.. and F01.. labels + rule polarity (MALICIOUS/BENIGN/NEUTRAL)<br/>• Emits Discoveries (e.g., success_after_failures for sprayed user)<br/>• Writes: queries (append), facts (merge), timeline, discoveries, audit"]
+
+        EG{"Node 3: evidence_gate (agents/critic_evidence.py)<br/>Runs 7 Deterministic Checks (E1–E7):<br/>• E1: Citations exist & in scope → INTEGRITY<br/>• E2: Independent plain-Python recount matches → INTEGRITY<br/>• E3: Event attributes match fact params → INTEGRITY<br/>• E4: Timestamps in window & sequence order → INTEGRITY<br/>• E5: Negative ('NOT_FOUND') covers 30m & 0 quarantined → COVERAGE / DATA_QUALITY<br/>• E6: All required checklist items answered → MISSING_CHECK<br/>• E7: Discovered success has active ATO hypothesis → HYPOTHESIS_UPGRADE"}
+
+        P -- "plan: list[ToolCall]" --> I
+        I -- "queries, facts, timeline, discoveries" --> EG
+        EG -- "next = 'planner'<br/>Remediable gap (MISSING_CHECK or HYPOTHESIS_UPGRADE)<br/>AND evidence_retries < 2 (or <1 for S11)<br/>AND made_progress == True<br/>[increments evidence_retries += 1]" --> P
+    end
+
+    subgraph Loop2["Bounded Reporting Loop (Max 3 Drafts: Initial + 1 Redraft + 1 Template)"]
+        R["Node 4: reporter (agents/reporter.py)<br/>• Computes deterministic Verdict via Table 28 (Disposition) & Table 29 (Priority)<br/>• Selects Playbook steps (core/playbook.py) & MITRE ATT&CK IDs<br/>• Compiles Q1–Q6 answers and open unknowns<br/>• If next == 'template' or used_template: runs deterministic template_draft()<br/>• Else calls NarrativeModel.draft(facts, verdict, errors) → NarrativeDraft<br/>• Maps F-labels to fact_ids & enforces claim section from fact polarity<br/>• Writes: report: Report, used_template: bool, audit"]
+
+        RG{"Node 5: report_gate (agents/critic_report.py)<br/>Runs 10 Deterministic Checks (R1–R10):<br/>• R1: Schema & non-empty sections | R2: Every claim cites ≥1 valid fact<br/>• R3: Every IP, number, time, user grounded in cited facts<br/>• R4: Section matches polarity (for=MALICIOUS, against=BENIGN)<br/>• R5: All BENIGN facts in 'against' & all open gaps in 'unknowns'<br/>• R6: Recomputed verdict equals report verdict<br/>• R7: No banned certainty words ('confirmed', 'breach', 'compromised')<br/>• R8: Valid playbook steps & requires_approval flags<br/>• R9: Valid ATT&CK IDs for active hypotheses & required facts<br/>• R10: Plain text only (no HTML, markdown, or links)"}
+
+        R -- "report: Report" --> RG
+        RG -- "next = 'redraft'<br/>Any R1–R10 failed AND report_retries < 1<br/>AND used_template == False<br/>[increments report_retries += 1, passes failed check reasons]" --> R
+        RG -- "next = 'template'<br/>Any R1–R10 failed AND report_retries == 1<br/>AND used_template == False<br/>[forces deterministic template fallback]" --> R
+    end
+
+    subgraph ReviewAndClose["Human-in-the-Loop Gate & Idempotent Finalisation"]
+        AR["Node 6: analyst_review (graph/nodes.py)<br/>• Calls LangGraph interrupt({case_id, status, disposition, priority, flagged})<br/>• Graph execution pauses via MemorySaver checkpointer<br/>• Analyst inspects Case File & submits AnalystDecision:<br/>  - Approve<br/>  - Override (override_disposition + mandatory reason)<br/>  - Escalate (optional reason)<br/>• Resumes via Command(resume=decision)<br/>• Writes: decision: AnalystDecision, audit"]
+
+        FIN["Node 7: finalize (graph/nodes.py)<br/>• Idempotent check on CaseRecord by case_id<br/>• Sets final status: 'ESCALATED' (if Escalate or UNRESOLVED without Override)<br/>  else 'CLOSED'<br/>• Persists CaseRecord & appends final SHA-256 hash-chained AuditEntry<br/>• Writes: status, audit"]
+    end
+
+    END_NODE(["END (Case CLOSED or ESCALATED)<br/>Hard Bound: ≤ 17 Completed Node Executions (3×3 + 3×2 + 1 + 1 = 17)<br/>LangGraph recursion_limit = 25"])
+
+    START --> P
+    EG -- "next = 'reporter'<br/>All E1–E7 passed → status = 'VALIDATED'" --> R
+    EG -- "next = 'reporter'<br/>Non-remediable gap (INTEGRITY / COVERAGE / DATA_QUALITY)<br/>OR evidence_retries == 2 OR not made_progress<br/>→ status = 'UNRESOLVED'" --> R
+    RG -- "next = 'analyst_review'<br/>All R1–R10 passed → status = 'PENDING_REVIEW'<br/>(or after template fallback → flagged)" --> AR
+    AR -- "decision: AnalystDecision" --> FIN
+    FIN --> END_NODE

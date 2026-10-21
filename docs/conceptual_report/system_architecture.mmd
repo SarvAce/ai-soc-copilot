@@ -1,0 +1,69 @@
+flowchart TB
+    subgraph DataLayer["1. Data & Knowledge Base Layer (soc_copilot/data/ & soc_copilot/kb/)"]
+        GEN["Seeded Scenario & Held-Out Generator<br/>(data/generator.py, scenarios.py, heldout.py)<br/>Design Seed=7 (S1–S11) | Held-Out Seed=42 (100 cases)"]
+        JSONL["Raw Sign-In Log Stream (JSONL)<br/>SSO & VPN Authentication / Account Events"]
+        KB["Versioned Local Knowledge Base (kb/)<br/>• users.csv (25 accounts, roles, privileges)<br/>• threat_intel.csv (malicious IPs)<br/>• network_zones.csv (LAN, VPN shared_egress)<br/>• geoip.csv (CIDR-to-country)<br/>• tickets.csv (IT reset & travel tickets)<br/>• evidence_requirements.yaml (GUESS/SPRAY/ATO checklists)<br/>• playbooks.yaml (response steps + requires_approval)<br/>• attack_mapping.yaml (MITRE ATT&CK rules)"]
+        GEN --> JSONL
+    end
+
+    subgraph Stage1["2. Stage 1: Ingestion, Normalisation & Deterministic Detection (Once per Log)"]
+        NORM["Normaliser & Quarantine Engine<br/>(core/normaliser.py)<br/>Schema validation, username canonicalisation,<br/>120-char untrusted string cap, Coverage window,<br/>QuarantinedRecord isolation (e.g., S6b)"]
+        STORE["Read-Only EventStore & Historical Baseline<br/>(core/store.py, core/baseline.py)<br/>Pandas DataFrame (explicit string dtypes)<br/>14-day pre-analysis baseline (known IPs, devices, countries)"]
+        DET["Agent 1: Detector Agent<br/>(agents/detector.py)<br/>Sliding-Window Rules:<br/>• R-GUESS (≥5 fails / 10m, 1 user + 1 IP → GUESS)<br/>• R-SPRAY (≥6 users / 30m, 1 IP, median ≤3 → SPRAY)<br/>• R-SAF (success after ≥5 fails / 30m → ATO)<br/>60m Case Grouping (shared_egress never merges)"]
+        QUEUE["Prioritised Alert Case Queue<br/>Case objects (C-01, C-02, ...)<br/>Initial Hypotheses, Scope, Seed Event IDs"]
+
+        JSONL --> NORM
+        NORM --> STORE
+        KB -.-> STORE
+        STORE --> DET
+        KB -.-> DET
+        DET --> QUEUE
+    end
+
+    subgraph Stage2["3. Stage 2: LangGraph Per-Case Investigation Workflow (soc_copilot/graph/ & agents/)"]
+        STATE[("Shared Typed State: CaseState (17 Channels)<br/>Single-Writer Ownership Enforced (graph/ownership.py)<br/>Checkpointer: MemorySaver (thread_id = case_id)")]
+
+        PLAN["Agent 2: Planner Agent<br/>(agents/planner.py, suggest.py)<br/>Expands YAML checklist items for active hypotheses<br/>Applies HYPOTHESIS_UPGRADE (→ ATO)<br/>Optional bounded LLM Suggester (≤3 extra checks)"]
+        TOOLS["Read-Only Tool Catalogue (core/tools.py: T1–T10)<br/>T1: auth_failures | T2: successes_after (30m)<br/>T3: baseline_check | T4: threat_intel | T5: network_zone<br/>T6: tickets (-24h) | T7: account_changes (-48h/+60m)<br/>T8: sprayed_targets | T9: user_identity | T10: data_quality"]
+        INV["Agent 3: Investigator Agent<br/>(agents/investigator.py, factbuild.py, core/polarity.py)<br/>Validates scope & ≤48h window, de-duplicates calls,<br/>executes T1–T10, builds Facts (F01..) with rule polarity<br/>(MALICIOUS / BENIGN / NEUTRAL), Timeline & Discoveries"]
+        EGATE["Agent 4a: Critic — Evidence Gate<br/>(agents/critic_evidence.py, core/recount.py)<br/>7 Deterministic Checks (E1–E7):<br/>E1: Citations | E2: Independent Python Recount<br/>E3: Attribute Match | E4: Time/Order | E5: Horizon Coverage<br/>E6: Checklist Sufficiency | E7: Discovery Consistency"]
+        DECIDE["Deterministic Verdict & Playbook Tables<br/>(core/decide.py, core/assess.py, core/playbook.py)<br/>Table 28 Disposition (6 rows) & Table 29 Priority (P1–P4)<br/>Q1–Q6 Answers, Playbook Steps, ATT&CK IDs"]
+        MODEL["NarrativeModel Interface (agents/models.py)<br/>Output Schema: NarrativeDraft {summary, claims[]}<br/>• MockModel (default deterministic templates)<br/>• OllamaModel (local qwen3.5:4b / qwen3-coder:30b, temp=0, seed=7)<br/>• FaultyModel (injects M1–M17 for evaluation)"]
+        REP["Agent 5: Reporter Agent<br/>(agents/reporter.py, narrative.py)<br/>Combines rule-computed Verdict + NarrativeDraft<br/>Maps F-labels to fact_ids, enforces claim section polarity"]
+        RGATE["Agent 4b: Critic — Report Gate<br/>(agents/critic_report.py, core/grounding.py)<br/>10 Deterministic Checks (R1–R10):<br/>R1: Schema | R2: Fact Citations | R3: Entity/Number Grounding<br/>R4: Section Polarity | R5: Benign & Gap Completeness<br/>R6: Verdict Equality | R7: No Certainty Words<br/>R8: Playbook Approval | R9: ATT&CK Validity | R10: Plain Text"]
+        HITL["Human-in-the-Loop Node: analyst_review<br/>(graph/nodes.py)<br/>Calls LangGraph interrupt() before finalisation<br/>Resumes via Command(resume=AnalystDecision)<br/>Approve | Override (reason required) | Escalate"]
+        FIN["Finalisation & Hash-Chained Audit Log: finalize<br/>(graph/nodes.py, core/audit.py)<br/>Idempotent CaseRecord export<br/>SHA-256 hash chain (prev_hash → entry_hash)"]
+
+        QUEUE --> PLAN
+        PLAN --> INV
+        STORE -.-> TOOLS
+        KB -.-> TOOLS
+        TOOLS <--> INV
+        INV --> EGATE
+        EGATE -- "Re-plan: MISSING_CHECK or HYPOTHESIS_UPGRADE<br/>(evidence_retries < 2 & made_progress)" --> PLAN
+        EGATE -- "VALIDATED or UNRESOLVED" --> REP
+        DECIDE --> REP
+        MODEL <--> REP
+        REP --> RGATE
+        RGATE -- "Redraft (report_retries < 1)<br/>or Template Fallback (used_template=True)" --> REP
+        RGATE -- "Passed (PENDING_REVIEW) or Flagged" --> HITL
+        HITL --> FIN
+        STATE -.-> PLAN
+        STATE -.-> INV
+        STATE -.-> EGATE
+        STATE -.-> REP
+        STATE -.-> RGATE
+        STATE -.-> HITL
+        STATE -.-> FIN
+    end
+
+    subgraph UILayer["4. Presentation & Analyst Review Layer"]
+        ST["Primary PoC UI: Streamlit Multi-Page App<br/>(soc_copilot/app.py & soc_copilot/ui/*)<br/>Runs LangGraph in-process (st.cache_resource)<br/>6 Tabs: Alert queue | Investigation trace | Case file |<br/>Analyst review | Evaluation | Architecture"]
+        API["Optional FastAPI + SSE Adapter<br/>(soc_copilot/api/app.py, service.py)<br/>Read-only REST + Live SSE Node Streaming"]
+        REACT["Companion React 18 + TypeScript + React Flow UI<br/>(frontend/src/* on branch feat/react-ui)<br/>Live animated graph, source attribution badges,<br/>split-view grounding inspector, 6 matching screens"]
+
+        STAGE_LINK1[" "] style STAGE_LINK1 fill:none,stroke:none
+        FIN --> ST
+        FIN --> API
+        API --> REACT
+    end
