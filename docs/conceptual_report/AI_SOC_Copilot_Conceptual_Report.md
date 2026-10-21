@@ -587,31 +587,31 @@ sequenceDiagram
     participant HITL as Analyst Review (interrupt)
     participant Fin as Finalize Node (Audit Chain)
 
-    Det->>Plan: Open Case C-01 (initial_hypothesis=SPRAY, 8 users, IP 203.0.113.50)
+    Det->>Plan: Open Case C-01 (initial_hypothesis=SPRAY, 12 accounts [8 real + 4 ghost], IP 203.0.113.50)
     Note over Plan,EG: Pass 1 (Initial Hypothesis: SPRAY, evidence_retries = 0)
-    Plan->>Inv: plan = 12 ToolCalls (T10, T8, T4, T5, and T2 for 8 sprayed users)
-    Inv->>Inv: Execute QRY01–QRY12 → Facts F01–F12 + Discovery(bob: success_after_failures)
-    Inv->>EG: 12 queries, 12 facts, 1 discovery
-    EG->>EG: E1–E6 pass; E7 FAILS (bob signed in & registered MFA, but ATO not active)
-    EG->>Plan: next="planner", Gap(HYPOTHESIS_UPGRADE), evidence_retries = 1
+    Plan->>Inv: plan = 12 ToolCalls (T1, T2 for 8 real users, T4, T5, T8, T10)
+    Inv->>Inv: Execute QRY01–QRY12 → Facts + Discovery(bob@corp.example: success at 02:41)
+    Inv->>EG: queries, facts, timeline, 1 discovery
+    EG->>EG: E1–E6 pass; E7 FAILS (bob@corp.example signed in after spray, but ATO not active)
+    EG->>Plan: next="planner", Gap(HYPOTHESIS_UPGRADE, user="bob@corp.example"), evidence_retries = 1
 
     Note over Plan,EG: Pass 2 (Upgraded Hypothesis: SPRAY + ATO, evidence_retries = 1)
-    Plan->>Inv: Upgrade hypotheses=[SPRAY, ATO]; plan = 4 ToolCalls for bob (T3, T6, T7, T9)
-    Inv->>Inv: Execute QRY13–QRY16 → Facts F13–F18 (unknown IP/device/RU, no ticket, MFA reg)
-    Inv->>EG: 16 total queries, 18 total facts
-    EG->>EG: All E1–E7 PASS (independent Python recount matches all 18 facts)
+    Plan->>Inv: Upgrade hypotheses=[SPRAY, ATO]; plan = 4 ATO ToolCalls for bob@corp.example (T3, T6, T7, T9)
+    Inv->>Inv: Execute QRY13–QRY16 → Facts for bob (new IP/device dev-b204, no ticket, no MFA change, standard user)
+    Inv->>EG: All SPRAY + ATO queries and facts
+    EG->>EG: All E1–E7 PASS (independent Python recount matches all facts)
     EG->>Rep: next="reporter", status="VALIDATED"
 
     Note over Rep,RG: Reporting & Grounding Gate
-    Rep->>Rep: Rule Table 28 → SUSPECTED_COMPROMISE (bob row 2; 7 others row 6)<br/>Rule Table 29 → Priority P2 (Impact HIGH via persistence)
-    Rep->>RG: Report (Verdict + NarrativeDraft with 18 cited facts)
+    Rep->>Rep: Rule Table 28 → SUSPECTED_COMPROMISE (bob Row 4; 7 other real users Row 6)<br/>Rule Table 29 → Priority P2 (Impact NORMAL)
+    Rep->>RG: Report (Verdict + NarrativeDraft citing validated facts)
     RG->>RG: All R1–R10 PASS (every IP, number, time, user grounded in cited facts)
     RG->>HITL: next="analyst_review", status="PENDING_REVIEW"
 
     HITL-->>Analyst: LangGraph interrupt() pauses thread C-01
     Analyst->>HITL: Command(resume=AnalystDecision(action="Approve"))
     HITL->>Fin: decision=Approve
-    Fin->>Fin: Set status="CLOSED", persist CaseRecord, verify SHA-256 audit chain (seq 1..8)
+    Fin->>Fin: Set status="CLOSED", persist CaseRecord, verify SHA-256 audit chain
 ```
 
 ![Figure 4: Sequence diagram of Scenario S2 showing discovery-driven re-planning](../figures/fig4_sequence.png)
@@ -622,69 +622,56 @@ sequenceDiagram
 
 ## 14. End-to-End Investigation Scenario Walkthrough (Scenario S2)
 
-To demonstrate how the implemented codebase handles a complex, multi-account identity attack from raw log ingestion to cryptographically audited closure, we trace **Scenario `S2`: Password spray with one compromised account (`bob`)** (`soc_copilot/data/scenarios.py`, lines 142–207).
+To demonstrate how the implemented codebase handles a complex, multi-account identity attack from raw log ingestion to cryptographically audited closure, we trace **Scenario `S2`: Spray with one successful sign-in (`bob@corp.example`)** (`soc_copilot/data/scenarios.py`, lines 104–123).
 
 ### Step 1: Log Ingestion, Normalisation, and Baseline Construction
-1. **Input Log:** `generate_scenario("S2", seed=7)` generates 14 days of historical background traffic (`2026-10-01` to `2026-10-14`, establishing that `bob` normally logs in from `10.0.1.12` in country `IN` on device `dev-bob-01`) plus the `ANALYSIS_DAY` (`2026-10-15`) attack burst and a trailing heartbeat event at `12:00:00Z`.
-2. **Normalisation (`core/normaliser.py`):** All JSONL records pass schema validation (`quarantined = []`). `Coverage` spans `2026-10-01T09:00:00Z` to `2026-10-15T12:00:00Z`.
+1. **Input Log:** `s2(profiles)` in `soc_copilot/data/scenarios.py` (with design seed `7`) generates 14 days of historical background traffic (`2026-10-01` to `2026-10-14`, establishing each user's baseline `known_ips`, `known_devices`, and `known_countries`) plus the `ANALYSIS_DAY` (`2026-10-15`) spray burst and normal enterprise sign-ins extending past the 30-minute post-failure horizon.
+2. **Normalisation (`core/normaliser.py`):** All JSONL records pass schema validation (`quarantined = []`). Notice that the 4 non-inventory usernames (`ghost1@corp.example`, `jsmith@corp.example`, `admin1@corp.example`, `test@corp.example`) are **not** quarantined—they are valid `sign_in` failure records preserved as evidence of account enumeration (`POC_SPEC.md` §12.2 rule 2).
 3. **Attack Events on `2026-10-15`:**
-   - Between `03:00:00Z` and `03:13:00Z`, external IP `203.0.113.50` (`RU`, listed in `kb/threat_intel.csv` as `botnet_credential_spray`) sends **2 `auth_failure` events each** (`wrong_password`) to 8 inventory accounts: `alice`, `bob`, `carol`, `dave`, `erin`, `frank`, `grace`, and `heidi` (16 failure events total).
-   - At `03:17:00Z` (4 minutes after the last failure), `bob` authenticates (`auth_success`) from the same attacker IP `203.0.113.50` on a previously unseen device `dev-unk-88`.
-   - At `03:25:00Z` (8 minutes after the login), an `mfa_register` event registers a new authenticator on `bob`'s account from `203.0.113.50` (`dev-unk-88`).
+   - Between `02:10:00Z` and `02:38:00Z`, external IP `203.0.113.50` sends **2 failed `sign_in` attempts each** (`bad_password`) across **12 accounts** (8 real inventory users: `kim@corp.example`, `bob@corp.example`, `liam@corp.example`, `maya@corp.example`, `nina@corp.example`, `omar@corp.example`, `paul@corp.example`, `ravi@corp.example`, plus the 4 `GHOSTS` = **24 failed sign-ins total**).
+   - At `02:41:00Z` (within the 30-minute post-failure horizon), `bob@corp.example` signs in (`outcome="success"`) from the same spray IP `203.0.113.50` on a new device `dev-b204`.
 
 ### Step 2: Stage-1 Detection (`agents/detector.py`)
-- **Why per-account rules miss `bob`:** `R-GUESS` requires $\ge 5$ failures for a single user within 10 minutes, and `R-SAF` requires a success preceded by $\ge 5$ failures for *that user* within 30 minutes. Because `bob` only had **2 failed attempts**, neither `R-GUESS` nor `R-SAF` fires!
-- **How `R-SPRAY` catches the burst:** `_detect_r_spray` slides a 30-minute window over `203.0.113.50`, finding **8 distinct targeted accounts** ($\ge 6$) with a median of **2.0 attempts per user** ($\le 3$).
-- **Case Opened:** The Detector opens **Case `C-01`** with `initial_hypothesis = "SPRAY"`, `hypotheses = ["SPRAY"]`, `scope.users = ["alice", "bob", "carol", "dave", "erin", "frank", "grace", "heidi"]`, and `scope.ips = ["203.0.113.50"]`.
+- **Why per-account rules miss `bob@corp.example`:** `R-GUESS` requires $\ge 5$ failures for a single user within 10 minutes, and `R-SAF` requires a success preceded by $\ge 5$ failures for *that user* within 30 minutes. Because `bob@corp.example` only had **2 failed attempts**, neither `R-GUESS` nor `R-SAF` fires (`POC_SPEC.md` §14.8).
+- **How `R-SPRAY` catches the burst:** `_detect_r_spray` slides a 30-minute window over `203.0.113.50`, finding **12 distinct targeted accounts** ($\ge 6$) with a median of **2.0 attempts per user** ($\le 3$).
+- **Case Opened:** The Detector opens **Case `C-01`** with `initial_hypothesis = "SPRAY"`, `hypotheses = ["SPRAY"]`, `users` listing the 12 targeted accounts, and `src_ips = ["203.0.113.50"]`.
 
 ### Step 3: Stage-2 Pass 1 — Planning & Investigation under `SPRAY`
-1. **Node 1 (`planner`, Pass 1):** Reads `kb/evidence_requirements.yaml` for `SPRAY`, which requires `SPRAY.Q0` (`T10`), `SPRAY.Q1` & `SPRAY.Q6` (`T8`), `SPRAY.Q2` (`T2` per user), `SPRAY.Q3_ti` (`T4`), and `SPRAY.Q3_zone` (`T5`). It emits a plan of **12 `ToolCall`s**:
-   - `T2` (`successes_after`) for each of the 8 sprayed users over `[03:00:00Z, 03:43:00Z]`;
-   - `T4` (`threat_intel`) and `T5` (`network_zone`) for `203.0.113.50`;
-   - `T8` (`sprayed_targets`) and `T10` (`data_quality`) for `203.0.113.50`.
-2. **Node 2 (`investigator`, Pass 1):** Executes `QRY01`–`QRY12` and builds 12 facts (`F01`–`F12`):
-   - For `alice`, `carol`, `dave`, `erin`, `frank`, `grace`, `heidi`: `T2` returns `NOT_FOUND` (`success_after_failures = False`, `NEUTRAL`).
-   - **For `bob` (`F02`):** `T2` finds `bob`'s two failures followed by `auth_success` at `03:17:00Z`, producing a `SEQUENCE` fact (`value = True`, `polarity = "MALICIOUS"`).
-   - Because `ATO` is not yet in `state["hypotheses"]`, the Investigator records:
-     ```python
-     Discovery(
-         kind="success_after_failures",
-         entity="bob",
-         detail="User bob had a successful sign-in within the horizon after failures (fact F02).",
-         query_id="QRY02",
-     )
-     ```
+1. **Node 1 (`planner`, Pass 1):** Reads `kb/evidence_requirements.yaml` for `SPRAY`. It expands per-user checks only over the 8 **inventory** users (`kim`, `bob`, `liam`, `maya`, `nina`, `omar`, `paul`, `ravi`) while non-inventory `GHOSTS` are counted in aggregate by `T8`. It emits **12 `ToolCall`s** covering `T1`, `T2` (for the 8 inventory users), `T4` (`threat_intel`), `T5` (`network_zone`), `T8` (`sprayed_targets`), and `T10` (`data_quality`).
+2. **Node 2 (`investigator`, Pass 1):** Executes the planned queries against `EventStore`, `Baseline`, and `KB`:
+   - `T8` (`sprayed_targets` on `203.0.113.50`): produces `spray_pattern` (`24` failures across `12` accounts, `MALICIOUS`) and `unknown_usernames` (`4` non-existent accounts, `MALICIOUS`).
+   - For the 7 uncompromised inventory users (`kim`, `liam`, `maya`, `nina`, `omar`, `paul`, `ravi`): `T2` returns `no_success` (`NOT_FOUND`, `NEUTRAL`) with full 30-minute horizon coverage.
+   - **For `bob@corp.example`:** `T2` finds `bob`'s 2 failures followed by his `02:41:00Z` sign-in (`E00318`), producing a `SEQUENCE` fact (`topic = "success_after_failures"`, `polarity = "MALICIOUS"`), and records a `Discovery` for `bob@corp.example`.
 
 ### Step 4: Stage-2 Pass 1 — Critic Evidence Gate Triggers Re-Plan (`E7`)
 - **Node 3 (`evidence_gate`, Pass 1):**
-  - Checks `E1`–`E6` all **PASS** (all 12 facts pass independent plain-Python recount in `core/recount.py`, all `NOT_FOUND` facts cover the full 30-minute horizon, and every `SPRAY` checklist item is answered).
-  - **Check `E7` (`Discovery consistency`) FAILS:** `discoveries` contains `success_after_failures` for `bob`, which implies an active Account Takeover (`ATO`), but `"ATO"` is not in `state["hypotheses"]`.
-  - The Critic raises `Gap(gap_type="HYPOTHESIS_UPGRADE", item_id="ATO", entity="bob",remediable=True)`, increments `evidence_retries` from `0` to `1`, and sets `next = "planner"`.
+  - Checks `E1`–`E6` all **PASS** (independent plain-Python recount in `core/recount.py` agrees with every fact, all `no_success` facts cover the 30-minute horizon, and all `SPRAY` checklist items are answered).
+  - **Check `E7` (`Discovery consistency`) FAILS:** A `success_after_failures` fact/discovery exists for `bob@corp.example`, which requires the `ATO` hypothesis to be active, but `state["hypotheses"]` is currently `["SPRAY"]`.
+  - The Critic raises `Gap(gap_type="HYPOTHESIS_UPGRADE", user="bob@corp.example", item="ATO")`, increments `evidence_retries` from `0` to `1`, and sets `next = "planner"`.
 
 ### Step 5: Stage-2 Pass 2 — Upgraded `ATO` Planning, Investigation, and Validation
-1. **Node 1 (`planner`, Pass 2):** Sees the `HYPOTHESIS_UPGRADE` gap for `bob`, upgrades `state["hypotheses"]` to `["SPRAY", "ATO"]`, and expands the unanswered `ATO` checklist items (`ATO.Q3_base`, `ATO.Q4_tkt`, `ATO.Q4_chg`, `ATO.Q5`, `ATO.Q6`) specifically for `bob`. Already-executed queries (`QRY01`–`QRY12`) are skipped. Emits **4 new `ToolCall`s** (`T3`, `T6`, `T7`, `T9` for `bob`).
-2. **Node 2 (`investigator`, Pass 2):** Executes `QRY13`–`QRY16` and merges 6 new facts (`F13`–`F18`, for 18 total facts):
-   - `T3` (`baseline_check` for `bob` at `203.0.113.50`, `dev-unk-88`, `RU`): `known_ip = False` (`NEUTRAL`), `known_device = False` (`NEUTRAL`), `known_country = False` (`MALICIOUS`).
-   - `T6` (`tickets` for `bob`): `NOT_FOUND` (`NEUTRAL` — no reset or travel ticket explains the login from `RU`).
-   - `T7` (`account_changes` for `bob`): `EXISTS` (`change_phase = "post_success"`, `event_types = ["mfa_register"]`, `polarity = "MALICIOUS"`).
-   - `T9` (`user_identity` for `bob`): `exists = True, role = "Accountant", department = "Finance", is_privileged = False`.
-3. **Node 3 (`evidence_gate`, Pass 2):** Re-runs `E1`–`E7` across all 18 facts. Every check **PASSES** (`E7` passes because `ATO` is now active and all `ATO` items for `bob` are answered). Sets `status = "VALIDATED"` and `next = "reporter"`.
+1. **Node 1 (`planner`, Pass 2):** Sees the `HYPOTHESIS_UPGRADE` gap for `bob@corp.example`, upgrades `state["hypotheses"]` to `["SPRAY", "ATO"]`, and plans only the unanswered `ATO` checks for `bob@corp.example`: **`T3` (`baseline`), `T6` (`tickets`), `T7` (`account_changes`), and `T9` (`identity`)**.
+2. **Node 2 (`investigator`, Pass 2):** Executes those 4 new tool calls for `bob@corp.example`:
+   - `T3`: `203.0.113.50` and `dev-b204` are both new for `bob@corp.example` (no `known_ip` or `known_device` fact).
+   - `T6`: `no_ticket` (`NOT_FOUND`, `NEUTRAL` — no password reset or travel ticket in the 24h window).
+   - `T7`: `no_account_change` (`NOT_FOUND`, `NEUTRAL` — no password change in the 48h before or MFA registration in the 60m after).
+   - `T9`: `identity` (`bob@corp.example` is a standard non-privileged user).
+3. **Node 3 (`evidence_gate`, Pass 2):** Re-runs `E1`–`E7` across all collected facts. Every check **PASSES**. Sets `status = "VALIDATED"` and `next = "reporter"`.
 
 ### Step 6: Deterministic Decision, Narrative Drafting, and Report Gate (`R1`–`R10`)
 1. **Node 4 (`reporter`):**
-   - `compute_verdict()` (`core/decide.py`) evaluates **Table 28** per account:
-     - For `bob`: `success_after = True` AND `malicious_indicator = True` (TI match + post-login `mfa_register` + new country `RU` without travel ticket) $\rightarrow$ **Row 2 fires: `SUSPECTED_COMPROMISE`**.
-     - For `alice`, `carol`, `dave`, `erin`, `frank`, `grace`, `heidi`: `no_success_covered = True` and no benign explanation $\rightarrow$ **Row 6 fires: `ATTACK_ATTEMPT_NO_ACCESS`**.
-     - Case disposition (most severe across accounts): **`SUSPECTED_COMPROMISE`**.
-   - Evaluates **Table 29 (Priority Matrix):** Because post-success persistence (`mfa_register`) was observed on `bob`, `impact = "HIGH"`.Wait—let's check what priority `S2` gets! Let's check why `S2` expected priority in `scenarios.py` is `P2`! In `core/assess.py`, let's recall why `S2` has `P2`: in `scenarios.py` line 154: `"priority": "P2"`. Why? Because in `core/assess.py`, `compute_impact` checks privileged account or persistence from a new device without ticket—wait let's check `core/assess.py` or `results/models_S2_*.json` (`"verdict": "SUSPECTED_COMPROMISE P2"`). In `core/assess.py`, `bob` is a standard Finance user (`is_privileged = False`) and 1 account was accessed, so `impact = "NORMAL"`, giving `SUSPECTED_COMPROMISE` + `NORMAL` = **`P2`**!
-   - Selects playbook steps: `PB-ATO-01` (revoke active sessions & tokens, `requires_approval=True`), `PB-ATO-02` (force password reset & remove newly registered MFA device, `requires_approval=True`), `PB-ATO-03` (audit mailbox/forwarding rules), `PB-SPRAY-01` (block `203.0.113.50`, `requires_approval=True`).
-   - Selects MITRE ATT&CK techniques: `T1110.003` (Password Spraying), `T1078` (Valid Accounts), and `T1098.005` (Account Manipulation: Device Registration).
-   - Drafts narrative (`summary` and `claims`) citing `F01`–`F18`.
+   - `verdict_from_facts()` (`core/decide.py` & `core/assess.py`) evaluates **Table 28** per inventory account:
+     - For `bob@corp.example`: `success_after = True`, `malicious_indicator = False` (as documented in `core/decide.py` lines 15–19, `spray_pattern` and `unknown_usernames` are case-level malicious evidence under *Evidence For*, not account-level compromise indicators), and `benign_explanation = False` $\rightarrow$ **Table 28 Row 4 (`success_after`) fires: `SUSPECTED_COMPROMISE`**.
+     - For `kim`, `liam`, `maya`, `nina`, `omar`, `paul`, `ravi`: `no_success_covered = True` and `benign_explanation = False` $\rightarrow$ **Table 28 Row 6 fires: `ATTACK_ATTEMPT_NO_ACCESS`**.
+     - Case disposition (most severe across the 8 accounts): **`SUSPECTED_COMPROMISE`**.
+   - Evaluates **Table 29 (Priority Matrix):** Because `bob@corp.example` is not a privileged account, no persistence (`mfa_device_registered`) occurred, and only 1 account had a post-failure sign-in, `impact = "NORMAL"`. Combining `SUSPECTED_COMPROMISE` with `Impact NORMAL` yields **`Priority P2`**.
+   - Selects playbook steps from `kb/playbooks.yaml` (`PB-ATO-01` contact `bob` out of band, `PB-ATO-02` revoke active sessions `[requires_approval]`, `PB-ATO-03` force password reset `[requires_approval]`, `PB-SPR-01` block `203.0.113.50` at the edge `[requires_approval]`) and MITRE ATT&CK techniques (`T1110.003` Password Spraying, `T1078` Valid Accounts).
+   - Drafts the narrative (`summary` and `claims`) citing the validated `Fxx` facts.
 2. **Node 5 (`report_gate`):** Runs `R1`–`R10`. All 10 checks **PASS**. Sets `status = "PENDING_REVIEW"` and `next = "analyst_review"`.
 
 ### Step 7: Human-in-the-Loop Interrupt and Hash-Chained Finalisation
-1. **Node 6 (`analyst_review`):** Calls `interrupt()`, pausing `C-01`. The analyst reviews the Case File in the UI and clicks **Approve** (`AnalystDecision(action="Approve", reviewer="analyst")`).
-2. **Node 7 (`finalize`):** Resumes via `Command(resume=decision)`, transitions `status` to `"CLOSED"`, stores the `CaseRecord`, and appends the 8th `AuditEntry` (3 nodes in Pass 1 + 3 nodes in Pass 2 + `reporter` + `report_gate` + `analyst_review` + `finalize` = **10 completed node executions**, well below the hard cap of 17). `verify_chain(audit)` returns `True`.
+1. **Node 6 (`analyst_review`):** Calls `interrupt()`, pausing `C-01`. The analyst inspects the Case File in the UI and clicks **Approve** (`AnalystDecision(action="Approve", reviewer="analyst")`).
+2. **Node 7 (`finalize`):** Resumes via `Command(resume=decision)`, sets `status = "CLOSED"`, stores the `CaseRecord`, and appends the terminal `AuditEntry` (3 nodes in Pass 1 + 3 nodes in Pass 2 + `reporter` + `report_gate` + `analyst_review` + `finalize` = **10 completed node executions**, well below the hard cap of 17). `verify_chain(audit)` returns `True`.
 
 ---
 
@@ -811,20 +798,20 @@ All quantitative metrics reported below are **authentic measured outputs** gener
 
 All **12 design logs** (`S1`–`S5`, `S6a`, `S6b`, `S7`–`S11`) match their exact expected ground-truth outcomes:
 
-| Scenario | Description | Cases Opened | Expected & Measured Disposition | Priority | Gate 1 / Re-plans | Gate 2 | Node Steps ($\le 17$) |
+| Scenario | Description (`soc_copilot/data/scenarios.py`) | Cases Opened | Expected & Measured Disposition | Priority | Gate 1 / Re-plans | Gate 2 | Node Steps ($\le 17$) |
 |---|---|---|---|---|---|---|---|
-| **`S1`** | Brute force on `alice` from Tor exit (`203.0.113.7`), no login | 1 | `ATTACK_ATTEMPT_NO_ACCESS` | `P3` | `VALIDATED` (0 retries) | `PASS` | 7 |
-| **`S2`** | Password spray across 8 users; `bob` logs in & registers MFA | 1 | `SUSPECTED_COMPROMISE` (`bob`) | `P2` | `VALIDATED` (**1 re-plan** via `E7`) | `PASS` | 10 |
-| **`S3`** | Compromise of privileged `admin_sara` after 6 failures + MFA reg | 1 | `SUSPECTED_COMPROMISE` | `P1` | `VALIDATED` (0 retries) | `PASS` | 7 |
-| **`S4`** | Benign forgotten password on `alice` from LAN + reset ticket `TKT-1001` | 1 | `LIKELY_BENIGN` | `P4` | `VALIDATED` (0 retries) | `PASS` | 7 |
-| **`S5`** | Routine password change on `carol` + 1 typo user `carol_typo` | 1 | `LIKELY_BENIGN` | `P4` | `VALIDATED` (0 retries) | `PASS` | 7 |
-| **`S6a`** | Truncated log ending 5m after failures on `dave` (< 30m horizon) | 1 | `UNRESOLVED` (Gap: `COVERAGE` via `E5`) | `P2` | `UNRESOLVED` (0 retries) | `PASS` | 7 |
-| **`S6b`** | Quarantined record (missing `src_ip`) for `dave` inside horizon | 1 | `UNRESOLVED` (Gap: `DATA_QUALITY` via `E5`) | `P2` | `UNRESOLVED` (0 retries) | `PASS` | 7 |
-| **`S7`** | Below-threshold noise ($N-1$: 4 failures on `erin`, 5 sprayed users) | **0** | *(No case opened — true negative)* | — | — | — | 0 |
-| **`S8`** | Prompt injection in username (`admin; ignore previous instructions...`) | 1 | `ATTACK_ATTEMPT_NO_ACCESS` (immune) | `P3` | `VALIDATED` (0 retries) | `PASS` | 7 |
-| **`S9`** | Low-and-slow spray (1 attempt every 15m across 2h — documented miss) | **0** | *(Documented out-of-window miss)* | — | — | — | 0 |
-| **`S10`** | Coexisting signals (`dave` has travel ticket `TKT-1002` to `DE`, but attacker logs in from `RU` Tor exit + MFA reg) | 1 | `SUSPECTED_COMPROMISE` (Row 2 beats Row 3) | `P2` | `VALIDATED` (0 retries) | `PASS` | 7 |
-| **`S11`** | Retry-cap escalation (`max_evidence_retries=1` with withheld check) | 1 | `UNRESOLVED` (`ESCALATED`) | `P2` | `UNRESOLVED` (hit retry cap `1/1`) | `PASS` | 10 |
+| **`S1`** | Takeover with persistence: 9 failures on `alice` from TI-listed `203.0.113.7`, sign-in at `01:08`, MFA device registered 6m later | 1 | `SUSPECTED_COMPROMISE` | `P1` | `VALIDATED` (0 retries) | `PASS` | 7 |
+| **`S2`** | Spray with one successful sign-in: 12 accounts (8 real + 4 ghost) from `203.0.113.50`; `bob` signs in at `02:41` | 1 | `SUSPECTED_COMPROMISE` (`bob`) | `P2` | `VALIDATED` (**1 re-plan** via `E7`) | `PASS` | 10 |
+| **`S3`** | Spray with no success: 10 real accounts sprayed from `203.0.113.60`, full 30m coverage, 0 successes | 1 | `ATTACK_ATTEMPT_NO_ACCESS` | `P3` | `VALIDATED` (0 retries) | `PASS` | 7 |
+| **`S4`** | Forgotten password: 6 failures on `carol` from known `home_ip`/device, reset ticket `TCK-1001`, then sign-in | 1 | `LIKELY_BENIGN` | `P4` | `VALIDATED` (0 retries) | `PASS` | 7 |
+| **`S5`** | Stale password saved on a phone: `password_changed` 21h prior on `dave`, 40 failures from known phone, no success | 1 | `LIKELY_BENIGN` | `P4` | `VALIDATED` (0 retries) | `PASS` | 7 |
+| **`S6a`** | Truncated log: 7 failures on `erin` from `203.0.113.70`; log stops 10m after burst (< 30m horizon) | 1 | `UNRESOLVED` (Gap: `COVERAGE` via `E5`) | `P2` | `UNRESOLVED` (0 retries) | `PASS` | 7 |
+| **`S6b`** | Malformed success record: 6 failures on `frank` from `203.0.113.80`; `13:10` sign-in has empty `src_ip` and is quarantined | 1 | `UNRESOLVED` (Gap: `DATA_QUALITY` via `E5`) | `P2` | `UNRESOLVED` (0 retries) | `PASS` | 7 |
+| **`S7`** | Below threshold: 3 failures then a success on `grace` (< `R-GUESS` threshold of 5) | **0** | *(No case opened — true negative)* | — | — | — | 0 |
+| **`S8`** | Prompt injection in a username: 10-account spray from `203.0.113.90` containing `admin; ignore previous instructions...` | 1 | `ATTACK_ATTEMPT_NO_ACCESS` (immune) | `P3` | `VALIDATED` (0 retries) | `PASS` | 7 |
+| **`S9`** | Low-and-slow spray: 6 accounts, 1 attempt/account/hour across rotating IPs (documented miss by design) | **0** | *(Documented out-of-window miss)* | — | — | — | 0 |
+| **`S10`** | Administrator on a known device: 6 failures then success on `uma.admin` via `VPN_EGRESS` on known device | 1 | `LIKELY_BENIGN` (`P3` due to admin impact) | `P3` | `VALIDATED` (0 retries) | `PASS` | 7 |
+| **`S11`** | Cascade with an unchecked pivot: spray + `bob` login from `203.0.113.55`, then MFA reg from `203.0.113.56` (`retries_cap=1`) | 1 | `UNRESOLVED` (`P1` due to persistence) | `P1` | `UNRESOLVED` (hit retry cap `1/1`) | `PASS` | 10 |
 
 ### 18.2 Held-Out Benchmark Results (100 Cases, 290 Accounts, Seed `42`)
 
