@@ -1,0 +1,12 @@
+# Streamlit settings for the demonstration (spec Appendix E.1).
+#
+# The demonstration is given in mock mode with the network off, so the
+# application must make no outbound request of its own. Streamlit otherwise
+# reports anonymous usage statistics, which is the only call it would make.
+
+[browser]
+gatherUsageStats = false
+
+[runner]
+# Rerunning on every save would restart a case mid-demonstration.
+fastReruns = false

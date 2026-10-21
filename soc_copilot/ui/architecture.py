@@ -16,7 +16,9 @@ import streamlit as st
 from soc_copilot.config import get_config
 from soc_copilot.ui.chain import Step, build_chain, loops_taken, path_of
 from soc_copilot.ui.components import caption_line, chips, role_of, section_heading
-from soc_copilot.ui.engine import loaded_scenario, scenario_cap, snapshot, stage_from
+from soc_copilot.ui.engine import (
+    loaded_scenario, run_case_live, scenario_cap, snapshot, stage_from,
+)
 from soc_copilot.ui.workflow import executions, workflow_dot
 
 FIGURE = Path(__file__).resolve().parents[2] / "docs" / "figures" / "fig2_architecture.png"
@@ -143,6 +145,18 @@ def render(settings) -> None:
         chain = build_chain(stage.graph, stage.settings(case))
         run = snapshot(stage, case)
 
+    if case is not None and not chain:
+        # Appendix E.1 reaches this page before the Investigation trace, so the
+        # graph can be filled in from here rather than only from the trace page.
+        st.info("This case has not run yet, so the graph on the right is the "
+                "design only. Press **Run this case** to overlay the run.",
+                icon="▶️")
+        if st.button("Run this case", type="primary", key="architecture-run"):
+            with st.status("Running the workflow ...") as status:
+                run_case_live(stage, case)
+                status.update(label="Workflow finished", state="complete")
+            st.rerun()
+
     left, right = st.columns(2)
     with left:
         figure_panel()
@@ -151,10 +165,6 @@ def render(settings) -> None:
             st.info("This scenario opens no case, so there is no thread to draw.")
         else:
             graph_panel(stage, case, chain)
-
-    if case is not None and not chain:
-        st.info("This case has not run yet. Open **Investigation trace** and press "
-                "**Run this case** to fill the graph in.", icon="▶️")
 
     st.divider()
     counter_row(chain, run, settings.scenario_id)

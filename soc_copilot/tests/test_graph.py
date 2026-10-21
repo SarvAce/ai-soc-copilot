@@ -254,3 +254,57 @@ def test_node_executions_counts_the_audit_log(design_runs):
     run = _run(design_runs, "S1")
     state = {"audit": run.audit}
     assert node_executions(state) == run.node_executions == len(run.nodes_run)
+
+
+# --- a model that fails outright (CLAUDE.md: never crash because of it) ----
+
+
+class _DeadModel:
+    """A narrative model that always fails, as an unreachable Ollama does."""
+
+    name = "dead"
+
+    def __init__(self) -> None:
+        """Count the attempts, so the Table 25 route can be checked."""
+        self.calls = 0
+
+    def draft(self, facts, verdict, errors=None):
+        """Fail every time, the way a timeout or a refused connection does."""
+        from soc_copilot.agents.models import DraftFailed
+
+        self.calls += 1
+        raise DraftFailed("the model is not reachable")
+
+
+@pytest.mark.parametrize("scenario_id", ["S1", "S2", "S6a", "S8"])
+def test_a_model_that_always_fails_falls_through_to_the_template(
+    design_runs, scenario_id
+):
+    """A model error is a failed draft: one redraft, then the template (§15.5)."""
+    model = _DeadModel()
+    run = _run(design_runs, scenario_id, model=model)
+
+    # The draft and the redraft were both asked for, and both failed.
+    assert model.calls == 2
+    assert run.report_retries == 1
+    assert run.used_template
+    # The released report is still a valid one, written from the facts.
+    assert run.report is not None
+    assert run.report_check.passed
+    assert run.node_executions <= BOUND
+    assert run.status in ("CLOSED", "ESCALATED")
+
+
+def test_the_template_says_the_drafts_were_rejected(design_runs):
+    """D30: the opening names which of the two template routes was taken."""
+    run = _run(design_runs, "S2", model=_DeadModel())
+    assert run.report.summary.startswith(
+        "Facts only: the local model's drafts did not pass the Report Gate")
+
+
+def test_a_model_that_always_fails_keeps_the_table_20_outcome(design_runs):
+    """The verdict is computed by code, so losing the model cannot change it."""
+    truth = design_runs.ground_truth["S2"]
+    run = _run(design_runs, "S2", model=_DeadModel())
+    assert run.report.verdict.disposition == truth["case_disposition"]
+    assert run.report.verdict.priority == truth["priority"]

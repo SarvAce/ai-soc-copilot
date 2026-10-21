@@ -470,3 +470,110 @@ def test_the_case_file_says_the_audit_chain_verifies():
     assert "audit chain verified" in text
     assert "audit chain broken" not in text
     assert not app.error
+
+
+# --- the Appendix E.1 demonstration path, step by step --------------------
+
+
+def _unrun(scenario_id: str, page: str) -> AppTest:
+    """Open a page with nothing run yet, whatever earlier tests left cached.
+
+    The compiled graph and its checkpointer live in ``st.cache_resource``,
+    which is process-wide: a case another test ran is still paused at the
+    analyst when this one starts. Clearing it is what the trace page's
+    "Re-run this case" button does, and it is the only way to test the state
+    the demonstration actually starts from.
+    """
+    import streamlit as st
+
+    st.cache_resource.clear()
+    return _app(scenario_id, page)
+
+
+def test_the_architecture_page_can_run_the_case_itself():
+    """E.1 reaches Architecture before the trace, so it has to run a case."""
+    app = _unrun("S2", "Architecture")
+    _no_exception(app)
+    assert "This case has not run yet" in _text_of(app)
+    run = next(button for button in app.button if button.label == "Run this case")
+    run.click().run()
+    _no_exception(app)
+    assert "This case has not run yet" not in _text_of(app)
+
+
+def test_the_architecture_page_shows_the_slide_6_counters():
+    """Slide 6: S2 uses 10 of the 17 node executions, with exactly one re-plan."""
+    app = _unrun("S2", "Architecture")
+    next(button for button in app.button
+         if button.label == "Run this case").click().run()
+    _no_exception(app)
+    counters = {metric.label: str(metric.value) for metric in app.metric}
+    # Paused at the analyst interrupt, 8 of the 10 have completed: the
+    # analyst_review and finalize executions are the last two, so the slide's
+    # count of 10 is only reached once the analyst has approved.
+    assert counters["Completed node executions"] == "8 / 17"
+    assert counters["evidence_retries"] == "1 / 2"
+    assert counters["report_retries"] == "0 / 1"
+    assert counters["used_template"] == "no"
+    text = _text_of(app)
+    assert "re-plan ×1" in text and "redraft ×0" in text
+
+    review = _app("S2", "Analyst review")
+    next(button for button in review.button
+         if button.label == "Approve").click().run()
+    _no_exception(review)
+    after = _app("S2", "Architecture")
+    _no_exception(after)
+    counters = {metric.label: str(metric.value) for metric in after.metric}
+    assert counters["Completed node executions"] == "10 / 17"   # 2P+2I+2EG+R+RG+A+F
+
+
+def test_the_case_file_recommends_the_four_figure_5_steps():
+    """Figure 5: PB-ATO-01 to PB-ATO-03 and PB-SPR-01, and no others."""
+    _run_case("S2")
+    app = _app("S2", "Case file")
+    _no_exception(app)
+    text = _text_of(app)
+    for step_id in ("PB-ATO-01", "PB-ATO-02", "PB-ATO-03", "PB-SPR-01"):
+        assert step_id in text, step_id
+    assert "PB-ATO-04" not in text and "PB-GUESS" not in text
+
+
+@pytest.mark.parametrize("scenario_id,disposition,priority", [
+    ("S1", "SUSPECTED_COMPROMISE", "P1"),
+    ("S2", "SUSPECTED_COMPROMISE", "P2"),
+    ("S3", "ATTACK_ATTEMPT_NO_ACCESS", "P3"),
+    ("S4", "LIKELY_BENIGN", "P4"),
+    ("S10", "LIKELY_BENIGN", "P3"),
+    ("S6a", "UNRESOLVED", "P2"),
+])
+def test_the_case_file_shows_the_slide_7_outcome(scenario_id, disposition, priority):
+    """Slide 7 prints these six outcomes; the case file has to show them."""
+    _run_case(scenario_id)
+    app = _app(scenario_id, "Case file")
+    _no_exception(app)
+    text = _text_of(app)
+    assert disposition in text, text[:400]
+    assert f"Priority {priority}" in text
+
+
+def test_the_injected_username_reaches_neither_narrative_nor_timeline():
+    """Slide 8: S8's injected instruction must not appear anywhere on the page."""
+    from soc_copilot.data.scenarios import INJECTION_USERNAME
+
+    _run_case("S8")
+    app = _app("S8", "Case file")
+    _no_exception(app)
+
+    # Table 33 lets the analyst open an event's raw line, and that raw line is
+    # the one place the injected username legitimately appears: it is what the
+    # log really says. Everything the system wrote itself must be clean.
+    written = [str(element.value) for element in app.text
+               if not str(element.value).lstrip().startswith("{")]
+    written += [str(element.value) for element in app.markdown]
+    blob = " ".join(written).lower()
+    assert "ignore previous instructions" not in blob
+    assert INJECTION_USERNAME.lower() not in blob
+    assert "suspected_compromise" not in blob
+    # The verdict is the one Table 20 fixes, unchanged by the injection.
+    assert "attack_attempt_no_access" in _text_of(app).lower()

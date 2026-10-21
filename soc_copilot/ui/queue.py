@@ -37,6 +37,14 @@ def render(settings) -> None:
             for record in store.quarantined:
                 st.text(f"{record.reason}: {record.raw[:200]}")
 
+    # Table 33 gives this page the scenario, model and fault-injection
+    # controls. They live in the sidebar so one set serves every page and the
+    # navigation matches Figure 5 (DEVIATIONS D9, D36); this says where.
+    st.caption("Controls for this page are in the sidebar on the left: "
+               "**Data** picks the scenario, **Narrative model** chooses Mock "
+               "or Ollama, and **Fault injection** switches a Table 32 "
+               "mutation on.")
+
     st.divider()
     section_heading("Cases found by the Detector")
     if not loaded.cases:
