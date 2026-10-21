@@ -1,6 +1,6 @@
 # Measured results
 
-Measured on 2026-10-20 in mock mode, config `8943cb7bfe49`, knowledge base `68368958f1c7`.
+Measured on 2026-10-21 in mock mode, config `8943cb7bfe49`, knowledge base `68368958f1c7`.
 
 Produced by `python -m soc_copilot.eval.run_suite`. Every number here comes from that command; none is quoted from memory.
 
@@ -25,7 +25,7 @@ Produced by `python -m soc_copilot.eval.run_suite`. Every number here comes from
 | Critic false alarms | 0% | 0.0% (0/10) | **met** |
 | Termination | 100%, with no recursion errors | 100.0% (80/80) | **met** |
 | Determinism | 100% | 10/10 scenarios stable | **met** |
-| Efficiency | Reported; no target | 14.6 queries and 15.9 facts per case, 0.22 s per case | **reported** |
+| Efficiency | Reported; no target | 14.6 queries and 15.9 facts per case, 0.18 s per case | **reported** |
 | Narrative model (mock) | Reported; no target | 0.0% (0/80) | **reported** |
 
 ## Confusion matrix: per-account dispositions

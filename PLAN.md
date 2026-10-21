@@ -3,7 +3,7 @@
 Plan for building the PoC described in `docs/POC_SPEC.md` (proposal v1.0.2).
 Written 20 October 2026, before any code. Section and table numbers refer to the spec.
 
-**Status: awaiting your OK. No prototype file has been deleted yet.**
+**Status: built.** WP0-WP8 are complete, every open question Q1-Q11 is closed, and the measured results are in `results/summary.md`. This file is kept as the plan it was, with each question's decision recorded beneath it.
 
 ---
 
