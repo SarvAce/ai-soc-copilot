@@ -262,7 +262,7 @@ After each work package: `pytest -q`, fix every failure, commit, and a short sum
 
 **Q10 — Ollama cold start.** The first call after a reboot took 127 s; warm calls take 5.8 s. I will have the app load the model once when Ollama mode is selected, show a spinner, and pass `keep_alive` so it stays resident. Worth knowing for the live demo: select Ollama mode a minute before you present.
 
-**Q11 — SqliteSaver (WP8, still open; asked 20 Oct 2026, not yet decided).** The
+**Q11 — SqliteSaver (WP8; asked 20 Oct 2026, decided 21 Oct 2026 — option 3, drop).** The
 last item of WP8 is `SqliteSaver`, so a case paused at the analyst interrupt
 survives an application restart. It needs `langgraph-checkpoint-sqlite`, which
 is not in the pinned stack, and `CLAUDE.md` reserves a new dependency for you.
@@ -283,5 +283,21 @@ Everything else in WP8 is built. Three options:
    chain, S11 and the threshold sweep — is built. The live interrupt works; it
    simply does not survive a restart, which a demonstration never does.
 
-My recommendation is 1 if the viva may ask about durability, 3 otherwise.
-Nothing else is waiting on this.
+My recommendation was 1 if the viva may ask about durability, 3 otherwise.
+
+**Decision (21 Oct 2026): option 3 — drop it.** Stage 2 keeps its `MemorySaver`.
+No new dependency is added, so `requirements.txt` and Table 24 stand as they are.
+`SqliteSaver` is recorded as dropped added value in `docs/DEVIATIONS.md` (D35),
+**to be revisited after the demonstrations**, and `docs/V1.1_NOTES.md` carries it
+forward for proposal v1.1.
+
+The §19 drop order — amended by D11 to hash chain, S11, threshold-sweep chart,
+`SqliteSaver`, live interrupt — ranks `SqliteSaver` second-last, above only the
+live interrupt, which is built and is demonstrated. The three items ranked as
+more expendable were all delivered as well, so this is a single targeted
+omission rather than a cascade, and it leaves `SqliteSaver` as the only WP8 item
+not built. `build_graph` already takes a `checkpointer` argument, so adding one
+later is a small change.
+
+Nothing else is waiting on this; Q1-Q10 are all settled and recorded in
+`docs/DEVIATIONS.md`.
