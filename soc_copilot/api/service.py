@@ -17,7 +17,10 @@ import threading
 from dataclasses import dataclass
 from typing import Any, Iterator
 
-from soc_copilot.agents.models import FaultyModel, MockModel
+from soc_copilot.agents.models import (
+    FaultyModel, MockModel, ModelNotInstalledError, OllamaInvestigator,
+    OllamaModel, OllamaPlanner, OllamaServiceError, verify_ollama_available,
+)
 from soc_copilot.config import get_config
 from soc_copilot.core.schemas import AnalystDecision, Case
 from soc_copilot.data.generator import ensure_design_set
@@ -100,25 +103,38 @@ def find_case(loaded: Loaded, case_id: str) -> Case:
 
 
 def new_session(scenario_id: str, case_id: str, fault: str = "off",
-                fault_when: str = "first") -> Session:
+                fault_when: str = "first", verify_model: bool = False) -> Session:
     """Build a fresh graph and checkpointer for a case, replacing any earlier one."""
     loaded = loaded_scenario(scenario_id)
     case = find_case(loaded, case_id)
-    model: Any = MockModel()
+    config = get_config()
+
+    if config.model.mode == "ollama":
+        if verify_model:
+            verify_ollama_available(config)
+        model: Any = OllamaModel(config=config)
+        planner_model: Any = OllamaPlanner(config=config)
+        investigator_model: Any = OllamaInvestigator(config=config)
+    else:
+        model = MockModel()
+        planner_model = None
+        investigator_model = None
+
     if fault != "off":
         if fault not in FAULT_CHOICES:
             raise ValueError(f"unknown fault {fault}")
         from soc_copilot.eval.pipeline import run_case
 
         clean = run_case(case, store=loaded.store, kb=get_kb(), baseline=loaded.baseline,
-                         config=get_config(), model=MockModel(),
+                         config=config, model=MockModel(),
                          evidence_retries_cap=scenario_cap(scenario_id))
         target = Target(facts=clean.facts, scope=clean.scope, case=case,
                         store=loaded.store, kb=get_kb(), report=clean.report)
         model = FaultyModel(mutation=mutation(fault).bind(target), inner=model,
                             when=fault_when)
     stage = stage_two(case, store=loaded.store, kb=get_kb(), baseline=loaded.baseline,
-                      config=get_config(), model=model,
+                      config=config, model=model, planner_model=planner_model,
+                      investigator_model=investigator_model,
                       evidence_retries_cap=scenario_cap(scenario_id))
     session = Session(scenario_id, case, loaded, stage, fault, fault_when)
     with _lock:
@@ -279,6 +295,9 @@ def detail(session: Session) -> dict[str, Any]:
 
 def run_stream(session: Session) -> Iterator[tuple[str, dict[str, Any]]]:
     """Run to the analyst interrupt, yielding one ``node`` event per completed node."""
+    config = get_config()
+    if config.model.mode == "ollama":
+        verify_ollama_available(config)
     emitted = 0
     case, stage = session.case, session.stage
     session.started = True

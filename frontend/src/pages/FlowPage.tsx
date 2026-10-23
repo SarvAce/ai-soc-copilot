@@ -20,9 +20,9 @@ function LoopBanners() {
         return (
           <div key={n.atIndex} role="status" className={`loopbanner loop-${n.kind} ${fresh ? 'loop-fresh' : ''}`}>
             <span className="loop-glyph" aria-hidden="true">↺</span>
-            <div>
-              <div className="loop-title">{n.title}</div>
-              <div>{n.detail}</div>
+            <div className="loop-content">
+              <span className="loop-title">{n.title}</span>
+              <span className="loop-detail">{n.detail}</span>
             </div>
           </div>
         );

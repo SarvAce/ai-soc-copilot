@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   Background, BaseEdge, EdgeLabelRenderer, Handle, Position, ReactFlow,
   getBezierPath, useReactFlow, type Edge, type EdgeProps, type Node, type NodeProps,
@@ -22,10 +22,10 @@ const POS: Record<string, { x: number; y: number }> = {
   report_gate:    { x: 510, y: 235 },
   analyst_review: { x: 270, y: 235 },
   finalize:       { x: 30,  y: 235 },
-  __end__:        { x: 30,  y: 395 },
+  __end__:        { x: 30,  y: 375 },
 };
 
-const DEFAULT_VIEWPORT = { x: 20, y: 15, zoom: 0.82 };
+const DEFAULT_VIEWPORT = { x: 12, y: 15, zoom: 0.64 };
 
 interface StepNodeData extends Record<string, unknown> {
   node: NodeName;
@@ -171,6 +171,23 @@ function FlowEdge(props: EdgeProps<Edge<FlowEdgeData>>) {
 const nodeTypes = { step: StepNode, end: EndNode };
 const edgeTypes = { flow: FlowEdge };
 
+function FitViewOnInit() {
+  const { fitView } = useReactFlow();
+  const initialDone = useRef(false);
+
+  useEffect(() => {
+    if (!initialDone.current) {
+      initialDone.current = true;
+      const timer = setTimeout(() => {
+        fitView({ padding: 0.05, minZoom: 0.45, maxZoom: 0.70, duration: 0 });
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [fitView]);
+
+  return null;
+}
+
 function CanvasControls() {
   const { zoomIn, zoomOut, fitView, setViewport } = useReactFlow();
   return (
@@ -181,7 +198,7 @@ function CanvasControls() {
       <button onClick={() => zoomOut({ duration: 200 })} title="Zoom Out (−)" aria-label="Zoom out">
         <span aria-hidden="true">－</span> Zoom Out
       </button>
-      <button onClick={() => fitView({ padding: 0.08, duration: 300, minZoom: 0.45, maxZoom: 1.05 })} title="Fit View to Screen" aria-label="Fit view to all nodes">
+      <button onClick={() => fitView({ padding: 0.05, duration: 250, minZoom: 0.45, maxZoom: 0.70 })} title="Fit View to Screen" aria-label="Fit view to all nodes">
         <span aria-hidden="true">⛶</span> Fit View
       </button>
       <button onClick={() => {
@@ -271,10 +288,8 @@ export function FlowGraph({
         edgeTypes={edgeTypes}
         colorMode={theme}
         defaultViewport={DEFAULT_VIEWPORT}
-        fitView
-        fitViewOptions={{ padding: 0.08, minZoom: 0.45, maxZoom: 1.05 }}
-        minZoom={0.2}
-        maxZoom={2.0}
+        minZoom={0.25}
+        maxZoom={1.5}
         nodesConnectable={false}
         nodesDraggable={false}
         panOnDrag={true}
@@ -287,6 +302,7 @@ export function FlowGraph({
         }}
       >
         <Background gap={24} size={1} />
+        <FitViewOnInit />
         <CanvasControls />
       </ReactFlow>
     </div>

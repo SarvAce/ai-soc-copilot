@@ -90,9 +90,26 @@ class Config(BaseModel):
 
 
 def load_config(path: Path | None = None) -> Config:
-    """Read and validate config.yaml from disk."""
+    """Read and validate config.yaml from disk, with optional environment overrides."""
+    import os
+
     text = (path or CONFIG_PATH).read_text(encoding="utf-8")
     raw: dict[str, Any] = yaml.safe_load(text)
+    model_raw = raw.setdefault("model", {})
+    if "MODEL_MODE" in os.environ:
+        model_raw["mode"] = os.environ["MODEL_MODE"]
+    if "OLLAMA_HOST" in os.environ:
+        model_raw["ollama_host"] = os.environ["OLLAMA_HOST"]
+    if "OLLAMA_MODEL" in os.environ:
+        model_raw["ollama_model"] = os.environ["OLLAMA_MODEL"]
+    if "OLLAMA_TIMEOUT_SECONDS" in os.environ:
+        model_raw["ollama_timeout_seconds"] = int(os.environ["OLLAMA_TIMEOUT_SECONDS"])
+    if "OLLAMA_KEEP_ALIVE" in os.environ:
+        model_raw["ollama_keep_alive"] = os.environ["OLLAMA_KEEP_ALIVE"]
+    if "OLLAMA_THINK" in os.environ:
+        model_raw["ollama_think"] = os.environ["OLLAMA_THINK"].lower() in ("true", "1", "yes")
+    if "MODEL_TEMPERATURE" in os.environ:
+        model_raw["temperature"] = float(os.environ["MODEL_TEMPERATURE"])
     return Config.model_validate(raw)
 
 
@@ -106,3 +123,8 @@ def config_hash(path: Path | None = None) -> str:
 def get_config() -> Config:
     """Cached configuration, so every module reads one identical copy."""
     return load_config()
+
+
+def clear_config_cache() -> None:
+    """Clear the cached configuration so subsequent calls re-read the environment/config."""
+    get_config.cache_clear()

@@ -45,6 +45,7 @@ class RunContext:
     config: Config
     model: Any = None                       # NarrativeModel, or None for the template
     planner_model: Any = None               # suggestion mode (§14.4); off by default
+    investigator_model: Any = None          # Investigator synthesis model
     evidence_retries_cap: int | None = None
     report_retries_cap: int | None = None
     records: CaseRecordStore = field(default_factory=CaseRecordStore)
@@ -56,6 +57,7 @@ class RunContext:
         return RunContext(
             store=self.store, kb=self.kb, baseline=self.baseline, config=self.config,
             model=self.model, planner_model=self.planner_model,
+            investigator_model=self.investigator_model,
             evidence_retries_cap=self.evidence_retries_cap,
             report_retries_cap=self.report_retries_cap, records=self.records,
             runner=ToolRunner(self.store, self.kb, self.baseline, case, self.config))
@@ -138,6 +140,16 @@ def investigator_node(state: CaseState, ctx: RunContext) -> dict[str, Any]:
         reason += f"; reused {len(outcome.reused)} earlier queries"
     if outcome.rejected_calls:
         reason += f"; rejected {'; '.join(outcome.rejected_calls[:3])}"
+    if ctx.investigator_model is not None:
+        try:
+            assessment = ctx.investigator_model.assess(
+                state["case"], state["plan"], outcome.queries, outcome.facts, discoveries)
+            if assessment and assessment.summary:
+                reason += f"; {model_note(ctx.investigator_model)}: {assessment.summary}"
+            else:
+                reason += f"; {model_note(ctx.investigator_model)}"
+        except Exception as error:
+            reason += f"; {model_note(ctx.investigator_model)} (assessment failed: {error})"
     return {
         "queries": outcome.queries,
         "facts": outcome.facts,

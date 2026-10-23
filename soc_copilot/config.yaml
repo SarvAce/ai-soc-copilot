@@ -46,7 +46,7 @@ data:
 
 # --- Narrative model (spec Appendix B.3) -----------------------------------
 model:
-  mode: mock                       # mock | ollama; mock is the default
+  mode: ollama                     # mock | ollama; default to ollama for real Qwen 3.5 4B agents
   ollama_host: http://localhost:11434
   # The default narrative model. The sidebar dropdown is filled from
   # ollama.list(), so qwen3-coder:30b stays selectable at run time.

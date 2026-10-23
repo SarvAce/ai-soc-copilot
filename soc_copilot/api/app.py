@@ -97,19 +97,30 @@ def run_case(case_id: str, scenario: str, fault: str = "off",
              fault_when: Literal["first", "always"] = "first") -> StreamingResponse:
     """Run a case from the start; stream one SSE event per completed node."""
     _loaded(scenario)
-    try:
-        session = service.new_session(scenario, case_id, fault, fault_when)
-    except KeyError:
-        raise HTTPException(404, f"scenario {scenario} has no case {case_id}") from None
-    except ValueError as error:
-        raise HTTPException(422, str(error)) from None
+    if fault != "off" and fault not in service.FAULT_CHOICES:
+        raise HTTPException(422, f"unknown fault {fault}")
 
     def stream():
         yield _sse("start", {"case_id": case_id, "scenario_id": scenario,
                              "limits": service.limits(scenario), "synthetic": True})
         try:
+            session = service.new_session(scenario, case_id, fault, fault_when, verify_model=True)
+        except (service.OllamaServiceError, service.ModelNotInstalledError) as error:
+            yield _sse("error", {"message": str(error)})
+            return
+        except KeyError:
+            yield _sse("error", {"message": f"scenario {scenario} has no case {case_id}"})
+            return
+        except Exception as error:
+            yield _sse("error", {"message": f"{type(error).__name__}: {error}"})
+            return
+
+        try:
             for name, payload in service.run_stream(session):
                 yield _sse(name, payload)
+        except (service.OllamaServiceError, service.ModelNotInstalledError) as error:
+            yield _sse("error", {"message": str(error)})
+            return
         except Exception as error:  # surfaced to the client, never swallowed
             yield _sse("error", {"message": f"{type(error).__name__}: {error}"})
             return

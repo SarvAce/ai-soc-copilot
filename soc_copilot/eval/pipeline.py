@@ -83,13 +83,15 @@ class Stage2:
 def stage_two(
     case: Case, *, store: EventStore, kb: KnowledgeBase, baseline: Baseline,
     config: Config, model: Any = None, planner_model: Any = None,
+    investigator_model: Any = None,
     evidence_retries_cap: int | None = None, report_retries_cap: int | None = None,
     records: CaseRecordStore | None = None, checkpointer: Any = None,
 ) -> Stage2:
     """Build the graph for one case, with its own tool runner (spec §13.3)."""
     ctx = RunContext(
         store=store, kb=kb, baseline=baseline, config=config, model=model,
-        planner_model=planner_model, evidence_retries_cap=evidence_retries_cap,
+        planner_model=planner_model, investigator_model=investigator_model,
+        evidence_retries_cap=evidence_retries_cap,
         report_retries_cap=report_retries_cap,
         records=records or CaseRecordStore()).for_case(case)
     return Stage2(ctx=ctx, graph=build_graph(ctx, checkpointer), config=config)
@@ -160,12 +162,14 @@ def drive(
 def run_case(
     case: Case, *, store: EventStore, kb: KnowledgeBase, baseline: Baseline,
     config: Config, model: Any = None, planner_model: Any = None,
+    investigator_model: Any = None,
     evidence_retries_cap: int | None = None, report_retries_cap: int | None = None,
     decision: AnalystDecision | None = None, records: CaseRecordStore | None = None,
 ) -> RunResult:
     """Run one case to the analyst interrupt, and through it when a decision is given."""
     stage = stage_two(case, store=store, kb=kb, baseline=baseline, config=config,
                       model=model, planner_model=planner_model,
+                      investigator_model=investigator_model,
                       evidence_retries_cap=evidence_retries_cap,
                       report_retries_cap=report_retries_cap, records=records)
     nodes_run, drafts, interrupt = drive(stage, case, initial_state(case))

@@ -14,7 +14,8 @@ from typing import Any
 import streamlit as st
 
 from soc_copilot.agents.models import (
-    FaultyModel, MockModel, OllamaModel, OllamaSuggester, available_models,
+    FaultyModel, MockModel, OllamaInvestigator, OllamaModel, OllamaSuggester,
+    available_models,
 )
 from soc_copilot.config import get_config
 from soc_copilot.core.schemas import AnalystDecision, Case
@@ -105,6 +106,8 @@ def stage_for(
         case, store=loaded.store, kb=get_kb(), baseline=loaded.baseline,
         config=get_config(), model=_narrative_model(settings, loaded, case),
         planner_model=OllamaSuggester(model=ollama_model or "")
+        if mode == "ollama" else None,
+        investigator_model=OllamaInvestigator(model=ollama_model or "")
         if mode == "ollama" else None,
         evidence_retries_cap=scenario_cap(scenario_id))
 
